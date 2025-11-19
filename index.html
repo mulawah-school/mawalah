@@ -366,9 +366,16 @@ function sendData(rows, type) {
 
   fetch(EXPORT_WEBAPP_URLS[type], {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+
+    // ❗ مهم جداً — منع الـ OPTIONS Preflight
+    headers: { 'Content-Type': 'text/plain' },
+
     body: JSON.stringify(rows)
-  }).then(() => {
+  })
+  .then(res => res.text())
+  .then(result => {
+    console.log("RESULT:", result);
+
     if (loadingSpan) loadingSpan.textContent = '✅ تم الإرسال بنجاح';
     setTimeout(() => {
       if (loadingSpan) {
@@ -378,10 +385,12 @@ function sendData(rows, type) {
     }, 1500);
 
     if (sendBtn) sendBtn.disabled = false;
-    resetForm(type);  // 🧹 تفريغ النموذج تلقائيًا
-  }).catch(err => {
+    resetForm(type);
+  })
+  .catch(err => {
     alert('❌ فشل الإرسال');
     console.error(err);
+
     if (loadingSpan) loadingSpan.style.display = 'none';
     if (sendBtn) sendBtn.disabled = false;
     resetForm(type);
@@ -450,7 +459,7 @@ function noAbsentees() {
   fetch(EXPORT_WEBAPP_URLS['Abs'], {
     method: 'POST',
     mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(rows)
   }).then(() => {
     if (loadingSpan) loadingSpan.textContent = '✅ تم الإرسال بنجاح';
