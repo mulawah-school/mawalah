@@ -128,8 +128,8 @@ button:hover {
 <span id="loadingAbs" style="display:none; margin-right: 10px; color:#0077b6;">⏳ جاري الإرسال...</span>
       </div>
       <table>
-        <thead><tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>الحالة</th></tr></thead>
-        <tbody id="studentsBodyAbs"><tr><td colspan="4">بانتظار تحميل البيانات...</td></tr></tbody>
+        <thead><tr><th>#</th><th>الاسم</th><th>الحالة</th></tr></thead>
+        <tbody id="studentsBodyAbs"><tr><td colspan="3">بانتظار تحميل البيانات...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -164,8 +164,8 @@ button:hover {
         <button onclick="exportData('Morning')">📤 إرسال</button><span id="loadingMorning" style="display:none; margin-right: 10px; color:#004b80;">⏳ جاري الإرسال...</span>
       </div>
       <table>
-        <thead><tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>الحالة</th></tr></thead>
-        <tbody id="studentsBodyMorning"><tr><td colspan="4">بانتظار تحميل البيانات...</td></tr></tbody>
+        <thead><tr><th>#</th><th>الاسم</th><th>الحالة</th></tr></thead>
+        <tbody id="studentsBodyMorning"><tr><td colspan="3">بانتظار تحميل البيانات...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -200,8 +200,8 @@ button:hover {
         <button onclick="exportData('Viol')">📤 إرسال</button><span id="loadingViol" style="display:none; margin-right: 10px; color:#dc2626;">⏳ جاري الإرسال...</span>
       </div>
       <table>
-        <thead><tr><th>#</th><th>الاسم</th><th>الهاتف</th><th>المخالفة</th></tr></thead>
-        <tbody id="studentsBodyViol"><tr><td colspan="4">بانتظار تحميل البيانات...</td></tr></tbody>
+        <thead><tr><th>#</th><th>الاسم</th><th>المخالفة</th></tr></thead>
+        <tbody id="studentsBodyViol"><tr><td colspan="3">بانتظار تحميل البيانات...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -226,9 +226,9 @@ function showSection(id) {
       state.Morning.status = {};
       state.Viol.violations = {};
 
-      document.getElementById('studentsBodyAbs').innerHTML = '<tr><td colspan="4">بانتظار تحميل البيانات...</td></tr>';
-      document.getElementById('studentsBodyMorning').innerHTML = '<tr><td colspan="4">بانتظار تحميل البيانات...</td></tr>';
-      document.getElementById('studentsBodyViol').innerHTML = '<tr><td colspan="4">بانتظار تحميل البيانات...</td></tr>';
+      document.getElementById('studentsBodyAbs').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
+      document.getElementById('studentsBodyMorning').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
+      document.getElementById('studentsBodyViol').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
 
       document.getElementById('gradeSelectAbs').value = '';
       document.getElementById('gradeSelectMorning').value = '';
@@ -285,7 +285,7 @@ function renderAbsence() {
   state.Abs.students.forEach((student, index) => {
     if (!(student.id in state.Abs.attendance)) state.Abs.attendance[student.id] = true;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td><td>${student.phone}</td>`;
+    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
     const tdStatus = document.createElement('td');
     const btn = document.createElement('button');
     const present = state.Abs.attendance[student.id];
@@ -298,27 +298,125 @@ function renderAbsence() {
   });
 }
 
+
+
 function renderViolations() {
   const tbody = document.getElementById('studentsBodyViol');
   tbody.innerHTML = '';
-  const violations = [ '', 'النوم أثناء الحصص', 'عدم الالتزام بالزي المدرسي', 'الإساءة بالقول لأحد زملائه', 'الإهمال في أداء الوجبات', 'التأخر عن الحصة الدراسية' ];
+
   state.Viol.students.forEach((student, index) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td><td>${student.phone}</td>`;
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${student.name}</td>
+    `;
+
     const tdViolation = document.createElement('td');
-    const select = document.createElement('select');
-    violations.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v; opt.textContent = v;
-      if (state.Viol.violations[student.id] === v) opt.selected = true;
-      select.appendChild(opt);
+
+    const mainViolations = [
+      {
+        title: 'الإخلال بنظام الطابور أو الحصص الدراسية أو الأنشطة المدرسية',
+        subOptions: [
+          'النوم في أثناء الحصص أو الأنشطة المدرسية',
+          'الإهمال في أداء الواجبات أو الأنشطة المدرسية',
+          'عدم الإنصات لتوجيهات المعلم',
+          'التسبب في الإزعاج بالقرب من الصفوف الدراسية',
+          'عدم الالتزام بإحضار الكتب والدفاتر والأدوات المدرسية والملابس الرياضية',
+          'التأخر عن الحصص الدراسية أو الغياب'
+        ]
+      },
+      {
+        title: 'الشجار مع زملائه والإساءة بالقول'
+      },
+      {
+        title: 'تناول المأكولات أو المشروبات في غير الوقت المخصص أو مضغ العلكة'
+      },
+      {
+        title: 'عدم المحافظة على النظافة أو المظهر الشخصي أو مرافق المدرسة'
+      },
+      {
+        title: 'التأخر عن الحصة الدراسية'
+      }
+    ];
+
+    mainViolations.forEach(main => {
+      const title = document.createElement('div');
+      title.textContent = main.title;
+      title.style.cursor = 'pointer';
+      title.style.background = '#f8d7da';
+      title.style.padding = '6px';
+      title.style.borderRadius = '6px';
+      title.style.marginBottom = '5px';
+
+      const container = document.createElement('div');
+      container.style.marginBottom = '8px';
+
+      if (main.subOptions) {
+        const subList = document.createElement('div');
+        subList.style.display = 'none';
+        subList.style.marginTop = '5px';
+
+        main.subOptions.forEach(optionText => {
+          const label = document.createElement('label');
+          label.style.display = 'block';
+
+          const radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.name = 'viol_' + student.id;
+          radio.value = optionText;
+
+          if (state.Viol.violations[student.id] === optionText) {
+            radio.checked = true;
+          }
+
+          radio.onchange = () => {
+            state.Viol.violations[student.id] = optionText;
+          };
+
+          label.appendChild(radio);
+          label.append(' ' + optionText);
+          subList.appendChild(label);
+        });
+
+        title.onclick = () => {
+          subList.style.display = subList.style.display === 'none' ? 'block' : 'none';
+        };
+
+        container.appendChild(title);
+        container.appendChild(subList);
+      } else {
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'viol_' + student.id;
+        radio.value = main.title;
+        radio.style.marginLeft = '5px';
+
+        if (state.Viol.violations[student.id] === main.title) {
+          radio.checked = true;
+        }
+
+        radio.onchange = () => {
+          state.Viol.violations[student.id] = main.title;
+        };
+
+        title.onclick = () => {
+          radio.checked = true;
+          state.Viol.violations[student.id] = main.title;
+        };
+
+        container.appendChild(radio);
+        container.appendChild(title);
+      }
+
+      tdViolation.appendChild(container);
     });
-    select.onchange = () => state.Viol.violations[student.id] = select.value;
-    tdViolation.appendChild(select);
+
     tr.appendChild(tdViolation);
     tbody.appendChild(tr);
   });
 }
+
+
 
 function exportData(type) {
   const teacher = document.getElementById('teacherName' + (type === 'Abs' ? 'Abs' : 'Viol')).value.trim() || 'المعلم';
@@ -404,7 +502,7 @@ function renderMorningLate() {
   state.Morning.students.forEach((student, index) => {
     if (!(student.id in state.Morning.status)) state.Morning.status[student.id] = true;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td><td>${student.phone}</td>`;
+    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
     const tdStatus = document.createElement('td');
     const btn = document.createElement('button');
     const early = state.Morning.status[student.id];
@@ -429,7 +527,7 @@ function resetForm(type) {
   if (gradeSelect) gradeSelect.value = '';
   if (sectionSelect) sectionSelect.innerHTML = '<option value="">اختر</option>';
   const tbody = document.getElementById(tbodyId);
-  if (tbody) tbody.innerHTML = '<tr><td colspan="4">بانتظار تحميل البيانات...</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
 
   // العودة للقائمة الرئيسية
   showSection('mainMenu');
@@ -507,7 +605,6 @@ function toggleDesignerInfo() {
   </button>
   <div id="designerInfo" style="margin-top: 15px; display: none; line-height: 1.8; color: #004b80;">
     👨‍💻 <strong>المصمم:</strong> سيف جمال المعولي<br>
-    📞 <strong>الهاتف:</strong> <a href="tel:99036615">99036615</a><br>
     ✉️ <strong>الإيميل:</strong> <a href="mailto:saif2005@moe.om">saif2005@moe.om</a>
   </div>
 </div>
