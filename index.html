@@ -668,7 +668,9 @@ async function extractStudentsFromPDF(file) {
       }))
       .filter(item => item.str);
 
-    rawItems.sort((a, b) => a.y - b.y || a.x - b.x);
+    // PDF.js يستخدم إحداثيات Y من أسفل الصفحة إلى أعلاها،
+    // لذلك يجب ترتيب الصفوف تنازليًا حتى تظهر الأسماء بنفس ترتيب الكشف (1، 2، 3 ...).
+    rawItems.sort((a, b) => b.y - a.y || a.x - b.x);
 
     const groups = [];
     const LINE_TOLERANCE = 7;
@@ -767,6 +769,9 @@ async function extractStudentsFromPDF(file) {
       unique.push(student);
     }
   });
+
+  // الحفاظ على ترتيب الكشف الأصلي حسب الرقم التسلسلي.
+  unique.sort((a, b) => Number(a.serial) - Number(b.serial));
 
   if (!detectedGrade) {
     throw new Error('لم أستطع تحديد الصف من ملف PDF.');
