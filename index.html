@@ -84,7 +84,7 @@ button:hover {
 
 /* ===== لوحة الإدارة ===== */
 .admin-dashboard{max-width:1100px;margin:20px auto}
-.admin-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0}
+.admin-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:18px 0}
 .admin-card{border:0;border-radius:16px;padding:24px;color:#fff;font-size:20px;font-weight:bold;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.15)}
 .admin-card.abs{background:#16a34a}.admin-card.viol{background:#dc2626}.admin-card.morning{background:#6a1b9a}
 .admin-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:15px 0}
@@ -94,9 +94,17 @@ button:hover {
 .admin-actions button{margin:4px}
 .status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}
 .student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
+#adminRecordsView{display:none !important}
+#adminRecordsView.admin-open{display:block !important}
 @media(max-width:700px){.admin-cards{grid-template-columns:1fr}.admin-dashboard{padding:10px}.admin-toolbar{display:block}.admin-toolbar>*{margin:5px;width:90%}}
 
 </style>
+<style>
+.teacher-send-fast {
+  transition: opacity .15s ease, transform .15s ease;
+}
+</style>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
@@ -110,7 +118,7 @@ button:hover {
     <button class="menu-btn absence-btn" onclick="showSection('absenceSection')">🟩 📋 تسجيل الغياب</button>
     <button class="menu-btn violation-btn" onclick="showSection('violationSection')">🟥 ⚠️ تسجيل المخالفات</button>
     <button class="menu-btn morning-btn" onclick="showSection('morningLateSection')">🔵 ⏰ التأخر الصباحي</button>
-    <button class="menu-btn" style="background:#475569;" onclick="openAdminLogin()">👨‍💼 الإدارة</button>
+    <button class="menu-btn" style="background:#475569;" onclick="openAdminDashboardLogin()">👨‍💼 الإدارة</button>
 
   </div>
 
@@ -170,22 +178,65 @@ button:hover {
       </div>
 
       <div id="adminDashboardPanel" style="display:none;">
+        <div style="background:#ecfeff;border:1px solid #a5f3fc;padding:12px;border-radius:12px;text-align:center;margin-bottom:15px;">
+          📌 <strong>تنبيه:</strong> تسجيل المعلم يحفظ الحالة فقط. إرسال WhatsApp يتم من هذه اللوحة بواسطة الإدارة.
+        </div>
+        <div style="display:flex;justify-content:center;margin:12px 0 18px;">
+          <button type="button" onclick="toggleAdminStudentLists()"
+                  style="background:#7c3aed;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
+            📚 قوائم الطلاب
+          </button>
+        </div>
+
+        <div id="adminStudentListsInline" style="display:none;background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <h3 style="margin:0;">📚 إدارة قوائم الطلاب PDF</h3>
+            <button type="button" onclick="toggleAdminStudentLists()" style="background:#64748b;color:#fff;">✖ إغلاق</button>
+          </div>
+
+          <p style="color:#555;line-height:1.8;text-align:center;">
+            القوائم التي يرفعها المدير هنا تستخدم مباشرة في صفحات الغياب والسلوكيات والتأخر.
+            عند رفع قائمة جديدة لنفس الصف والشعبة يتم استبدال القائمة السابقة.
+          </p>
+
+          <div style="text-align:center;">
+            <input id="pdfFilesInline" type="file" accept="application/pdf,.pdf" multiple
+                   style="padding:10px;width:90%;max-width:600px;">
+            <br><br>
+            <button onclick="importPDFListsInline()" style="background:#0077b6;color:#fff;">📥 استيراد قوائم PDF</button>
+            <button onclick="clearStudentLists()" style="background:#dc2626;color:#fff;">🗑️ حذف جميع القوائم</button>
+          </div>
+
+          <div id="pdfImportStatusInline" style="margin-top:15px;font-weight:bold;text-align:center;"></div>
+          <div id="studentListsSummaryInline" style="margin-top:20px;"></div>
+        </div>
+
         <div class="admin-cards">
-          <button class="admin-card abs" onclick="openAdminRecords('Abs')">🟩<br>الغياب</button>
-          <button class="admin-card viol" onclick="openAdminRecords('Viol')">🟥<br>السلوكيات</button>
-          <button class="admin-card morning" onclick="openAdminRecords('Morning')">🔵<br>التأخر الصباحي</button>
+          <button type="button" class="admin-card abs" onclick="openAdminRecords('Abs')">
+            🟩<br><span>الغياب</span><br><small>عرض سجلات الغياب</small>
+          </button>
+          <button type="button" class="admin-card viol" onclick="openAdminRecords('Viol')">
+            🟥<br><span>السلوكيات والمخالفات</span><br><small>عرض السجلات</small>
+          </button>
+          <button type="button" class="admin-card morning" onclick="openAdminRecords('Morning')">
+            🔵<br><span>التأخر الصباحي</span><br><small>عرض السجلات</small>
+          </button>
         </div>
 
         <div id="adminRecordsView" style="display:none;">
           <h3 id="adminRecordsTitle"></h3>
           <div class="admin-toolbar">
+            <div id="adminSendStatus" style="display:none;width:100%;background:#ecfeff;color:#075985;padding:10px 14px;border-radius:10px;text-align:center;font-weight:bold;">
+              ⏳ جاري إرسال الرسائل إلى WhatsApp...
+            </div>
             <input id="adminSearch" placeholder="🔎 البحث عن طالب" oninput="renderAdminRecords()">
             <button onclick="selectAllAdminRecords(true)">☑️ تحديد الكل</button>
             <button onclick="selectAllAdminRecords(false)">⬜ إلغاء التحديد</button>
             <button onclick="sendSelectedAdminRecords()" style="background:#16a34a;color:#fff;">📱 إرسال المحدد</button>
+            <button onclick="selectAndSendAllPending()" style="background:#059669;color:#fff;">📱 إرسال جميع غير المرسلة</button>
             <button onclick="deleteSelectedAdminRecords()" style="background:#dc2626;color:#fff;">🗑️ حذف المحدد</button>
-            <button onclick="exportSelectedStudentPDF()" style="background:#475569;color:#fff;">📄 تقرير الطالب</button>
-            <button onclick="exportAdminListPDF()" style="background:#0077b6;color:#fff;">📄 تصدير القائمة</button>
+            <button onclick="exportSelectedStudentPDF()" style="background:#475569;color:#fff;">📄 تقرير الطالب PDF</button>
+            <button onclick="exportAdminListPDF()" style="background:#0077b6;color:#fff;">📄 طباعة / PDF القائمة</button>
             <button onclick="loadAdminRecords()" style="background:#64748b;color:#fff;">🔄 تحديث</button>
           </div>
           <div id="adminRecordsViewList" class="admin-list"></div>
@@ -313,10 +364,13 @@ if (window.pdfjsLib) {
 }
 
 const SHEET_URLS = ['https://script.google.com/macros/s/AKfycbzlQe4iAbLDA53MFkP8LRVFjFO_K9yEkIT1ssh-BNje_VyogUuIaNTiK2YPdW6zP7Bh0Q/exec'];
+const ADMIN_PIN = '1982';
+const ADMIN_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwX06YdlSJP6Le-YfovLoZKuBEe8X6t9j6PBsTdda7oWYxbprz0PPtUE-gSnYCaKRGixA/exec';
+
 const EXPORT_WEBAPP_URLS = {
-  Abs: "https://script.google.com/macros/s/AKfycbwztdq4m2bo7b1gHYY1cPauOlyjZADJkATIiExR2OZg8GKlEMWFzgtw5wgR4sjdItuHlg/exec",
-  Viol: "https://script.google.com/macros/s/AKfycbwztdq4m2bo7b1gHYY1cPauOlyjZADJkATIiExR2OZg8GKlEMWFzgtw5wgR4sjdItuHlg/exec",
-  Morning: "https://script.google.com/macros/s/AKfycbwztdq4m2bo7b1gHYY1cPauOlyjZADJkATIiExR2OZg8GKlEMWFzgtw5wgR4sjdItuHlg/exec"
+  Abs: ADMIN_WEBAPP_URL,
+  Viol: ADMIN_WEBAPP_URL,
+  Morning: ADMIN_WEBAPP_URL
 };
 const state = { Abs: {students: [], attendance: {}}, Viol: {students: [], violations: {}}, Morning: {students: [], status: {}} };
 
@@ -328,6 +382,7 @@ function showSection(id) {
 
   if (id === 'mainMenu') {
       adminUnlocked = false;
+      adminDashboardUnlocked = false;
       state.Abs.attendance = {};
       state.Morning.status = {};
       state.Viol.violations = {};
@@ -440,14 +495,14 @@ async function loadCSVData(type) {
   if (localStudentLists[key] && Array.isArray(localStudentLists[key].students)) {
     state[type].students = localStudentLists[key].students
       .slice()
-      .sort((a, b) => Number(a.serial || 0) - Number(b.serial || 0))
+      .sort((a,b) => Number(a.serial || 0) - Number(b.serial || 0))
       .map((s, i) => ({
         id: i + 1,
         phone: s.phone || '',
         name: s.name || '',
         grade: grade,
         section: section,
-        serial: s.serial || i + 1,
+        serial: Number(s.serial || (i + 1)),
         schoolId: s.schoolId || ''
       }));
 
@@ -551,6 +606,7 @@ function verifyStudentListPin() {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadLocalStudentLists();
+  renderStudentListsSummaryInline();
 
   const pinInput = document.getElementById('adminPin');
   if (pinInput) {
@@ -599,100 +655,86 @@ async function extractStudentsFromPDF(file) {
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
-
   const students = [];
   let detectedGrade = '';
   let detectedSection = '';
 
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
-    const page = await pdf.getPage(pageNo);
-    const content = await page.getTextContent();
-
-    // نرتب عناصر كل سطر حسب موقعها في الصفحة، ثم نكوّن النص كما يظهر في التقرير.
-    const rawItems = content.items
+  // يحوّل نصوص PDF إلى أسطر مع الحفاظ على ترتيبها البصري.
+  function buildLines(items) {
+    const raw = items
       .map(item => ({
-        x: item.transform[4],
-        y: item.transform[5],
-        str: String(item.str || '').trim()
+        x: Number(item.transform?.[4] || 0),
+        y: Number(item.transform?.[5] || 0),
+        str: String(item.str || '')
       }))
-      .filter(item => item.str);
+      .filter(item => item.str.trim() !== '');
 
-    rawItems.sort((a, b) => a.y - b.y || a.x - b.x);
+    // Y في PDF يبدأ من أسفل الصفحة، لذلك الترتيب التنازلي = أعلى إلى أسفل.
+    raw.sort((a,b) => b.y - a.y || a.x - b.x);
 
     const groups = [];
-    const LINE_TOLERANCE = 7;
+    const tolerance = 6;
 
-    rawItems.forEach(item => {
-      let group = groups[groups.length - 1];
-
-      if (!group || Math.abs(item.y - group.y) > LINE_TOLERANCE) {
-        group = { y: item.y, ys: [item.y], items: [] };
-        groups.push(group);
-      } else {
-        group.ys.push(item.y);
-        group.y = group.ys.reduce((a, b) => a + b, 0) / group.ys.length;
+    for (const item of raw) {
+      let g = groups[groups.length - 1];
+      if (!g || Math.abs(item.y - g.y) > tolerance) {
+        g = { y:item.y, items:[] };
+        groups.push(g);
       }
+      g.items.push(item);
+    }
 
-      group.items.push(item);
+    return groups.map(g => {
+      // مهم: لا نعدل الحروف داخل item.str؛ فقط نوحد المسافات بين عناصر السطر.
+      g.items.sort((a,b) => a.x - b.x);
+      return g.items.map(i => i.str).join(' ')
+        .replace(/[ \t]+/g, ' ')
+        .trim();
+    });
+  }
+
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent({
+      normalizeWhitespace: false,
+      disableCombineTextItems: false
     });
 
-    const lines = groups.map(group =>
-      group.items
-        .sort((a, b) => a.x - b.x)
-        .map(item => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    );
-
+    const lines = buildLines(content.items);
     const pageText = lines.join('\n');
 
     if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
+    if (!detectedSection) detectedSection = extractSectionNumber(pageText);
 
-    if (!detectedSection) {
-      const normalizedPageText = normalizeDigits(pageText);
-      let m = normalizedPageText.match(
-        /(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/
-      );
-      if (!m) {
-        m = normalizedPageText.match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
-      }
-      if (!m) {
-        m = normalizedPageText.match(/(\d{1,2})\s*\/\s*20\d{2}/);
-      }
-      if (m) detectedSection = m[1];
-    }
-
-    /*
-      بنية صف الطالب في ملفات وزارة التربية:
-      رقم الهاتف | الرقم التسلسلي | اسم الطالب | الرقم المدرسي | الجنسية | الحالة | المنطقة
-
-      لذلك يجب أخذ الاسم بين الرقم التسلسلي والرقم المدرسي.
-      الطريقة السابقة كانت تأخذ الاسم بعد الرقم المدرسي، مما يؤدي إلى
-      فقد/تشويه أجزاء من الاسم.
-    */
     for (const line of lines) {
-      const clean = normalizeDigits(line).replace(/\s+/g, ' ').trim();
+      const clean = normalizeDigits(line)
+        .replace(/\u00A0/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-      const rowStart = clean.match(/^(\d{8})\s+(\d{1,3})\s+/);
-      if (!rowStart) continue;
+      // بداية سجل الطالب: الهاتف ثم الرقم التسلسلي.
+      const startMatch = clean.match(/^(\d{8})\s+(\d{1,3})\s+/);
+      if (!startMatch) continue;
 
-      const phone = rowStart[1];
-      const serial = Number(rowStart[2]);
+      const phone = startMatch[1];
+      const serial = Number(startMatch[2]);
 
-      // الرقم المدرسي هو أول رقم مكوّن من 12 خانة بعد بداية الطالب.
-      const afterStart = clean.slice(rowStart[0].length);
-      const schoolIdMatch = afterStart.match(/(?:^|\s)(\d{12})(?=\s|$)/);
+      // الرقم المدرسي 12 رقمًا هو العلامة الفاصلة بين الاسم وبقية الأعمدة.
+      const afterStart = clean.slice(startMatch[0].length);
+      const schoolIdMatch = afterStart.match(/\b(\d{12})\b/);
       if (!schoolIdMatch) continue;
 
       const schoolId = schoolIdMatch[1];
-      const schoolIdRelativeIndex = afterStart.indexOf(schoolId);
-      if (schoolIdRelativeIndex <= 0) continue;
+      const schoolIdIndex = afterStart.indexOf(schoolId);
+      if (schoolIdIndex <= 0) continue;
 
-      // الاسم كاملًا هو كل النص بين الرقم التسلسلي والرقم المدرسي.
-      // لا نقصه بناءً على الجنسية أو الحالة حتى لا نفقد أي كلمة من الاسم.
+      /*
+       * الاسم في ملف الوزارة يقع مباشرة بين الرقم التسلسلي والرقم المدرسي.
+       * لا نعتمد على الجنسية أو الحالة لقطع الاسم، لأن ذلك كان سببًا في
+       * فقد بعض الحروف/الكلمات في بعض الأسماء.
+       */
       const name = afterStart
-        .slice(0, schoolIdRelativeIndex)
+        .slice(0, schoolIdIndex)
         .replace(/\s+/g, ' ')
         .trim();
 
@@ -700,39 +742,31 @@ async function extractStudentsFromPDF(file) {
 
       students.push({
         phone,
+        serial,
         name,
-        schoolId,
-        serial
+        schoolId
       });
     }
   }
 
-  // إزالة التكرار مع الاحتفاظ بالبيانات الأصلية.
+  // إزالة التكرار مع إبقاء أول نسخة كما ظهرت في PDF.
   const unique = [];
   const seen = new Set();
 
-  students.forEach(student => {
-    const key = String(student.serial) + '|' + student.phone + '|' + student.schoolId;
+  for (const st of students) {
+    const key = `${st.serial}|${st.phone}|${st.schoolId}|${st.name}`;
     if (!seen.has(key)) {
       seen.add(key);
-      unique.push(student);
+      unique.push(st);
     }
-  });
-
-  // الترتيب النهائي دائمًا مطابق للرقم التسلسلي في ملف PDF.
-  unique.sort((a, b) => Number(a.serial) - Number(b.serial));
-
-  if (!detectedGrade) {
-    throw new Error('لم أستطع تحديد الصف من ملف PDF.');
   }
 
-  if (!detectedSection) {
-    throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
-  }
+  // الترتيب النهائي إلزاميًا حسب الرقم التسلسلي في PDF.
+  unique.sort((a,b) => Number(a.serial) - Number(b.serial));
 
-  if (!unique.length) {
-    throw new Error('تم فتح ملف PDF لكن لم أستطع استخراج أسماء الطلاب وأرقام الهواتف.');
-  }
+  if (!detectedGrade) throw new Error('لم أستطع تحديد الصف من ملف PDF.');
+  if (!detectedSection) throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
+  if (!unique.length) throw new Error('تم فتح ملف PDF لكن لم أستطع استخراج الطلاب.');
 
   return {
     grade: detectedGrade,
@@ -742,7 +776,6 @@ async function extractStudentsFromPDF(file) {
     updatedAt: new Date().toLocaleString('ar-OM')
   };
 }
-
 
 async function importPDFLists() {
   if (!adminUnlocked) return openAdminLogin();
@@ -854,7 +887,7 @@ function clearStudentLists() {
 function renderAbsence() {
   const tbody = document.getElementById('studentsBodyAbs');
   tbody.innerHTML = '';
-  state.Abs.students.slice().sort((a,b) => Number(a.serial || a.id || 0) - Number(b.serial || b.id || 0)).forEach((student, index) => {
+  state.Abs.students.slice().sort((a,b)=>Number(a.serial||a.id||0)-Number(b.serial||b.id||0)).forEach((student, index) => {
     if (!(student.id in state.Abs.attendance)) state.Abs.attendance[student.id] = true;
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
@@ -876,7 +909,7 @@ function renderViolations() {
   const tbody = document.getElementById('studentsBodyViol');
   tbody.innerHTML = '';
 
-  state.Viol.students.slice().sort((a,b) => Number(a.serial || a.id || 0) - Number(b.serial || b.id || 0)).forEach((student, index) => {
+  state.Viol.students.slice().sort((a,b)=>Number(a.serial||a.id||0)-Number(b.serial||b.id||0)).forEach((student, index) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${index + 1}</td>
@@ -994,7 +1027,7 @@ function exportData(type) {
   const teacher = document.getElementById('teacherName' + (type === 'Abs' ? 'Abs' : 'Viol')).value.trim() || 'المعلم';
   const grade = document.getElementById('gradeSelect' + type).value;
   const section = document.getElementById('sectionSelect' + type).value;
-  const today = new Date().toLocaleDateString('ar-EG');
+  const today = new Date().toLocaleDateString('ar-OM');
 
   if (type === 'Abs') {
     const absents = state.Abs.students.filter(s => state.Abs.attendance[s.id] === false);
@@ -1018,67 +1051,177 @@ function exportData(type) {
   else {
     const viols = state.Viol.students.filter(s => state.Viol.violations[s.id] && state.Viol.violations[s.id] !== '');
     if (!viols.length) return alert('لم يتم اختيار أي مخالفات.');
-    const rows = viols.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, message: `ولي أمر الطالب ${s.name}، تم تسجيل مخالفة: (${state.Viol.violations[s.id]}) في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
+    const rows = viols.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, violation: state.Viol.violations[s.id], message: `ولي أمر الطالب ${s.name}، تم تسجيل مخالفة: (${state.Viol.violations[s.id]}) في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
     sendData(rows, type);
   }
+}
+
+function todayISO() {
+  const d = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Muscat',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(d);
+
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${day}`;
+}
+
+function teacherInputId(type) {
+  return type === 'Abs' ? 'teacherNameAbs' :
+         type === 'Viol' ? 'teacherNameViol' :
+         'teacherNameMorning';
 }
 
 function sendData(rows, type) {
   const loadingSpan = document.getElementById('loading' + type);
   const sendBtn = document.querySelector(`button[onclick="exportData('${type}')"]`);
+  const grade = document.getElementById('gradeSelect' + type).value.trim();
+  const section = document.getElementById('sectionSelect' + type).value.trim();
+  const teacher = document.getElementById(teacherInputId(type)).value.trim() || 'المعلم';
 
-  if (loadingSpan) {
-    loadingSpan.textContent = '⏳ جاري الحفظ...';
-    loadingSpan.style.display = 'inline';
+  if (!grade || !section) {
+    showTeacherToast('⚠️ يرجى اختيار الصف والشعبة.', true);
+    return;
   }
-  if (sendBtn) sendBtn.disabled = true;
+
+  if (!rows || !rows.length) {
+    showTeacherToast('⚠️ لا توجد حالات لإرسالها.', true);
+    return;
+  }
 
   const records = rows.map(r => ({
-    ...r,
     type: type,
-    dateISO: todayISO(),
-    grade: document.getElementById('gradeSelect' + type).value,
-    section: document.getElementById('sectionSelect' + type).value,
-    teacher: document.getElementById('teacherName' + (type === 'Abs' ? 'Abs' : type === 'Viol' ? 'Viol' : 'Morning')).value.trim()
+    studentName: r.name,
+    studentId: `${type}-${grade}-${section}-${r.phone || r.serial}`,
+    phone: r.phone || '',
+    className: `${grade}/${section}`,
+    teacher: teacher,
+    violation: type === 'Viol' ? (r.violation || '') : '',
+    date: todayISO(),
+    message: r.message || ''
   }));
 
-  fetch(EXPORT_WEBAPP_URLS[type], {
+  // استجابة فورية للمعلم بدون انتظار نافذة alert.
+  if (loadingSpan) {
+    loadingSpan.textContent = '⏳ جاري إرسال البيانات للإدارة...';
+    loadingSpan.style.display = 'inline';
+  }
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.dataset.originalText = sendBtn.textContent;
+    sendBtn.textContent = '⏳ جاري الإرسال...';
+    sendBtn.style.opacity = '0.65';
+  }
+
+  showTeacherToast('⏳ جاري إرسال البيانات للإدارة...');
+
+  fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
-    headers: {'Content-Type': 'text/plain'},
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({
       action: 'record',
       pin: ADMIN_PIN,
       records: records
-    })
+    }),
+    cache: 'no-store',
+    redirect: 'follow',
+    keepalive: true
   })
   .then(res => res.json())
   .then(result => {
-    if (!result.ok) throw new Error(result.error || 'تعذر حفظ البيانات');
+    if (!result.success) throw new Error(result.error || 'تعذر حفظ البيانات');
 
-    if (loadingSpan) loadingSpan.textContent = `✅ تم الحفظ (${result.saved || 0})`;
-    if (sendBtn) sendBtn.disabled = false;
+    const added = Number(result.added || 0);
+    const skipped = Number(result.skipped || 0);
+
+    if (loadingSpan) {
+      loadingSpan.textContent = skipped
+        ? `✅ تم إرسال ${added} حالة للإدارة — مكرر: ${skipped}`
+        : `✅ تم إرسال ${added} حالة للإدارة`;
+    }
+
+    showTeacherToast(
+      skipped
+        ? `✅ تم إرسال ${added} حالة للإدارة — تم تجاهل ${skipped} حالة مكررة.`
+        : `✅ تم إرسال ${added} حالة للإدارة بنجاح.`
+    );
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = sendBtn.dataset.originalText || 'إرسال';
+      sendBtn.style.opacity = '1';
+    }
 
     setTimeout(() => {
       if (loadingSpan) {
         loadingSpan.style.display = 'none';
-        loadingSpan.textContent = '⏳ جاري الإرسال...';
       }
-    }, 1800);
+    }, 2500);
 
     resetForm(type);
   })
   .catch(err => {
-    alert('❌ فشل حفظ البيانات: ' + err.message);
     console.error(err);
-    if (loadingSpan) loadingSpan.style.display = 'none';
-    if (sendBtn) sendBtn.disabled = false;
+
+    if (loadingSpan) {
+      loadingSpan.textContent = '❌ تعذر إرسال البيانات للإدارة';
+    }
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = sendBtn.dataset.originalText || 'إرسال';
+      sendBtn.style.opacity = '1';
+    }
+
+    showTeacherToast('❌ فشل إرسال البيانات للإدارة: ' + err.message, true);
   });
+}
+
+function showTeacherToast(message, isError = false) {
+  let toast = document.getElementById('teacherSendToast');
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'teacherSendToast';
+    toast.style.cssText = `
+      position:fixed;
+      top:20px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:99999;
+      min-width:280px;
+      max-width:90vw;
+      padding:14px 20px;
+      border-radius:12px;
+      color:#fff;
+      font-weight:bold;
+      text-align:center;
+      box-shadow:0 6px 20px rgba(0,0,0,.18);
+      font-size:17px;
+      transition:opacity .2s ease;
+    `;
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = isError ? '#dc2626' : '#0077b6';
+  toast.style.opacity = '1';
+
+  clearTimeout(window.__teacherToastTimer);
+  window.__teacherToastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+  }, isError ? 5000 : 2500);
 }
 
 function renderMorningLate() {
   const tbody = document.getElementById('studentsBodyMorning');
   tbody.innerHTML = '';
-  state.Morning.students.slice().sort((a,b) => Number(a.serial || a.id || 0) - Number(b.serial || b.id || 0)).forEach((student, index) => {
+  state.Morning.students.slice().sort((a,b)=>Number(a.serial||a.id||0)-Number(b.serial||b.id||0)).forEach((student, index) => {
     if (!(student.id in state.Morning.status)) state.Morning.status[student.id] = true;
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
@@ -1123,36 +1266,716 @@ function noAbsentees() {
     return;
   }
 
-  fetch(EXPORT_WEBAPP_URLS.Abs, {
-    method:'POST',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify({
-      action:'record',
-      pin:ADMIN_PIN,
-      records:[{
-        type:'Abs',
-        noAbsence:true,
-        serial:1,
-        phone:'',
-        name:'لا يوجد غياب',
-        teacher:teacher,
-        grade:grade,
-        section:section,
-        dateISO:todayISO(),
-        message:`لا يوجد غياب في الصف ${grade}/${section} - المعلم: ${teacher}`
+  fetch(ADMIN_WEBAPP_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'record',
+      pin: ADMIN_PIN,
+      records: [{
+        type: 'Abs',
+        studentName: 'لا يوجد غياب',
+        studentId: `NOABS-${grade}-${section}-${todayISO()}`,
+        phone: '',
+        className: `${grade}/${section}`,
+        teacher: teacher,
+        violation: '',
+        date: todayISO(),
+        noAbsence: true,
+        message: `لا يوجد غياب في الصف ${grade}/${section} - المعلم: ${teacher}`
       }]
     })
   })
-  .then(r=>r.json())
-  .then(result=>{
-    if (!result.ok) throw new Error(result.error || 'فشل الحفظ');
-    alert('✅ تم تسجيل «لا يوجد غياب»');
+  .then(r => r.json())
+  .then(result => {
+    if (!result.success) throw new Error(result.error || 'فشل الحفظ');
+    alert('✅ تم تسجيل «لا يوجد غياب» وحفظه في النظام.');
     resetForm('Abs');
   })
-  .catch(err=>{
+  .catch(err => {
     console.error(err);
     alert('❌ فشل الحفظ: ' + err.message);
   });
+}
+
+
+
+/* =========================================================
+   لوحة الإدارة
+   ========================================================= */
+
+let adminRecords = [];
+let adminCurrentType = 'Abs';
+let adminSelectedIds = new Set();
+let adminDashboardUnlocked = false;
+
+function openAdminDashboardLogin() {
+  showSection('adminDashboardSection');
+  document.getElementById('adminDashboardLogin').style.display = 'block';
+  document.getElementById('adminDashboardPanel').style.display = 'none';
+  document.getElementById('adminRecordsView').style.display = 'none';
+  document.getElementById('studentReportView').style.display = 'none';
+  document.getElementById('dashboardPin').value = '';
+  setTimeout(() => document.getElementById('dashboardPin').focus(), 100);
+}
+
+async function verifyDashboardPin() {
+  const pin = document.getElementById('dashboardPin').value.trim();
+
+  if (pin !== ADMIN_PIN) {
+    document.getElementById('dashboardPin').value = '';
+    alert('❌ الرقم السري غير صحيح');
+    return;
+  }
+
+  adminDashboardUnlocked = true;
+  document.getElementById('adminDashboardLogin').style.display = 'none';
+  document.getElementById('adminDashboardPanel').style.display = 'block';
+  document.getElementById('adminRecordsView').classList.remove('admin-open');
+  document.getElementById('adminRecordsView').style.display = 'none';
+  document.getElementById('studentReportView').style.display = 'none';
+
+  await loadAdminRecords();
+  renderStudentListsSummaryInline();
+}
+
+async function loadAdminRecords() {
+  if (!adminDashboardUnlocked) return;
+
+  const view = document.getElementById('adminRecordsViewList');
+  view.innerHTML = '<div style="padding:25px;text-align:center;">⏳ جاري تحميل المعطيات...</div>';
+
+  try {
+    const url = `${ADMIN_WEBAPP_URL}?action=records&pin=${encodeURIComponent(ADMIN_PIN)}&_=${Date.now()}`;
+    const response = await fetch(url, {cache: 'no-store'});
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'تعذر تحميل السجلات');
+    }
+
+    adminRecords = Array.isArray(result.records) ? result.records : [];
+    adminSelectedIds = new Set();
+
+    renderAdminRecords();
+    updateAdminCardsCounts();
+
+  } catch (err) {
+    console.error(err);
+    view.innerHTML = `
+      <div style="padding:20px;color:#b91c1c;background:#fee2e2;border-radius:12px;">
+        ❌ تعذر تحميل البيانات.<br>${escapeHtml(err.message)}
+      </div>`;
+  }
+}
+
+function openAdminRecords(type) {
+  adminCurrentType = type;
+  document.getElementById('adminRecordsView').classList.add('admin-open');
+  document.getElementById('adminRecordsView').style.display = 'block';
+  document.getElementById('studentReportView').style.display = 'none';
+
+  const titles = {
+    Abs: '🟩 سجل الغياب',
+    Viol: '🟥 سجل السلوكيات والمخالفات',
+    Morning: '🔵 سجل التأخر الصباحي'
+  };
+
+  document.getElementById('adminRecordsTitle').textContent =
+    titles[type] || 'السجلات';
+
+  document.getElementById('adminSearch').value = '';
+  adminSelectedIds = new Set();
+  renderAdminRecords();
+}
+
+function updateAdminCardsCounts() {
+  const counts = {
+    Abs: adminRecords.filter(r => r.type === 'Abs').length,
+    Viol: adminRecords.filter(r => r.type === 'Viol').length,
+    Morning: adminRecords.filter(r => r.type === 'Morning').length
+  };
+
+  document.querySelector('.admin-card.abs').innerHTML =
+    `🟩<br>الغياب<br><small>${counts.Abs} حالة</small>`;
+  document.querySelector('.admin-card.viol').innerHTML =
+    `🟥<br>السلوكيات<br><small>${counts.Viol} حالة</small>`;
+  document.querySelector('.admin-card.morning').innerHTML =
+    `🔵<br>التأخر الصباحي<br><small>${counts.Morning} حالة</small>`;
+}
+
+function getVisibleAdminRecords() {
+  const q = (document.getElementById('adminSearch').value || '')
+    .trim()
+    .toLowerCase();
+
+  return adminRecords
+    .filter(r => r.type === adminCurrentType)
+    .filter(r => {
+      if (!q) return true;
+      const haystack = [
+        r.studentName,
+        r.studentId,
+        r.phone,
+        r.className,
+        r.teacher,
+        r.date,
+        r.violation
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    })
+    .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
+function renderAdminRecords() {
+  const box = document.getElementById('adminRecordsViewList');
+  const records = getVisibleAdminRecords();
+
+  if (!records.length) {
+    box.innerHTML = `
+      <div style="padding:25px;text-align:center;color:#64748b;">
+        لا توجد معطيات في هذا القسم.
+      </div>`;
+    return;
+  }
+
+  const rows = records.map((r, i) => {
+    const checked = adminSelectedIds.has(String(r.id)) ? 'checked' : '';
+    const sentText = r.sent
+      ? '<span class="status-sent">✅ تم الإرسال</span>'
+      : '<span class="status-pending">⏳ بانتظار الإرسال</span>';
+
+    const detail = r.type === 'Viol'
+      ? escapeHtml(r.violation || '—')
+      : r.type === 'Morning'
+        ? 'تأخر صباحي'
+        : (r.studentName === 'لا يوجد غياب' ? 'لا يوجد غياب' : 'غياب');
+
+    return `
+      <tr>
+        <td style="text-align:center;">
+          <input type="checkbox" ${checked}
+            onchange="toggleAdminRecord('${escapeJs(r.id)}', this.checked)">
+        </td>
+        <td>${i + 1}</td>
+        <td>
+          <button onclick="showStudentReport('${escapeJs(r.studentId)}')"
+            style="background:none;border:0;color:#075985;font-weight:bold;text-decoration:underline;">
+            ${escapeHtml(r.studentName || '—')}
+          </button>
+        </td>
+        <td>${escapeHtml(r.className || '—')}</td>
+        <td>${detail}</td>
+        <td>${escapeHtml(r.date || '—')}</td>
+        <td>${escapeHtml(r.teacher || '—')}</td>
+        <td>${sentText}</td>
+      </tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="margin-bottom:10px;color:#475569;">
+      عدد النتائج: <strong>${records.length}</strong>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:45px;">✓</th>
+          <th>#</th>
+          <th>الطالب</th>
+          <th>الصف/الشعبة</th>
+          <th>${adminCurrentType === 'Viol' ? 'المخالفة' : 'الحالة'}</th>
+          <th>التاريخ</th>
+          <th>المعلم</th>
+          <th>حالة WhatsApp</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function toggleAdminRecord(id, checked) {
+  id = String(id);
+  if (checked) adminSelectedIds.add(id);
+  else adminSelectedIds.delete(id);
+}
+
+function selectAllAdminRecords(select) {
+  getVisibleAdminRecords().forEach(r => {
+    if (select) adminSelectedIds.add(String(r.id));
+    else adminSelectedIds.delete(String(r.id));
+  });
+  renderAdminRecords();
+}
+
+function setAdminSendingUI(isSending, message) {
+  const status = document.getElementById('adminSendStatus');
+  if (status) {
+    status.style.display = isSending ? 'block' : 'none';
+    if (message) status.textContent = message;
+  }
+
+  document.querySelectorAll('#adminRecordsView .admin-toolbar button').forEach(btn => {
+    const text = btn.textContent || '';
+    const isSend = text.includes('إرسال');
+    if (isSend) {
+      btn.disabled = isSending;
+      btn.style.opacity = isSending ? '0.6' : '1';
+    }
+  });
+}
+
+async function sendSelectedAdminRecords() {
+  const ids = Array.from(adminSelectedIds);
+
+  if (!ids.length) {
+    alert('☑️ حدد حالة واحدة على الأقل للإرسال.');
+    return;
+  }
+
+  const selected = adminRecords.filter(r => ids.includes(String(r.id)));
+  const alreadySent = selected.filter(r => r.sent).length;
+  const pending = selected.filter(r => !r.sent).length;
+
+  if (!pending) {
+    alert('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.');
+    return;
+  }
+
+  const message =
+    `سيتم إرسال ${pending} رسالة WhatsApp.` +
+    (alreadySent ? `\nوسيتم تجاهل ${alreadySent} حالة أُرسلت سابقًا.` : '') +
+    '\n\nهل تريد المتابعة؟';
+
+  if (!confirm(message)) return;
+
+  setAdminSendingUI(true, `⏳ جاري إرسال ${pending} رسالة إلى WhatsApp...`);
+
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'send',
+        pin: ADMIN_PIN,
+        ids: ids
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'فشل الإرسال');
+    }
+
+    const sent = Number(result.sent || 0);
+    const failed = Number(result.failed || 0);
+
+    adminRecords = Array.isArray(result.records) ? result.records : adminRecords;
+    adminSelectedIds = new Set();
+
+    updateAdminCardsCounts();
+    renderAdminRecords();
+
+    setAdminSendingUI(false);
+
+    alert(
+      `📱 نتيجة الإرسال:\n\n` +
+      `✅ تم الإرسال: ${sent}\n` +
+      `❌ فشل: ${failed}\n\n` +
+      `لن يتم إعادة إرسال الحالات التي تم إرسالها بنجاح.`
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert('❌ فشل إرسال WhatsApp: ' + err.message);
+  }
+}
+
+async function selectAndSendAllPending() {
+  const pending = getVisibleAdminRecords().filter(r => !r.sent);
+
+  if (!pending.length) {
+    alert('لا توجد حالات غير مرسلة في هذا القسم.');
+    return;
+  }
+
+  if (!confirm(`سيتم إرسال ${pending.length} رسالة WhatsApp من الحالات غير المرسلة في هذا القسم.\n\nهل تريد المتابعة؟`)) {
+    return;
+  }
+
+  setAdminSendingUI(true, `⏳ جاري إرسال ${pending.length} رسالة إلى WhatsApp...`);
+
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'send',
+        pin: ADMIN_PIN,
+        ids: pending.map(r => String(r.id))
+      })
+    });
+
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'فشل الإرسال');
+
+    adminRecords = Array.isArray(result.records) ? result.records : adminRecords;
+    adminSelectedIds = new Set();
+    updateAdminCardsCounts();
+    renderAdminRecords();
+
+    setAdminSendingUI(false);
+    alert(`📱 تم الإرسال: ${result.sent || 0}\n❌ فشل: ${result.failed || 0}`);
+  } catch (err) {
+    console.error(err);
+    setAdminSendingUI(false);
+    alert('❌ فشل إرسال WhatsApp: ' + err.message);
+  }
+}
+
+async function deleteSelectedAdminRecords() {
+  const ids = Array.from(adminSelectedIds);
+
+  if (!ids.length) {
+    alert('☑️ حدد حالة واحدة على الأقل للحذف.');
+    return;
+  }
+
+  if (!confirm(`هل تريد حذف ${ids.length} سجل؟\n\nسيتم حذفها من قاعدة البيانات.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'delete',
+        pin: ADMIN_PIN,
+        ids: ids
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'فشل الحذف');
+    }
+
+    adminRecords = Array.isArray(result.records) ? result.records : [];
+    adminSelectedIds = new Set();
+
+    updateAdminCardsCounts();
+    renderAdminRecords();
+
+    document.getElementById('studentReportView').style.display = 'none';
+
+    alert(`🗑️ تم حذف ${result.deleted || ids.length} سجل.`);
+
+  } catch (err) {
+    console.error(err);
+    alert('❌ فشل الحذف: ' + err.message);
+  }
+}
+
+function showStudentReport(studentId) {
+  const id = String(studentId);
+  const records = adminRecords
+    .filter(r => String(r.studentId) === id)
+    .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  if (!records.length) {
+    alert('لا توجد سجلات لهذا الطالب.');
+    return;
+  }
+
+  const student = records[0];
+  const absence = records.filter(r => r.type === 'Abs' && r.studentName !== 'لا يوجد غياب');
+  const late = records.filter(r => r.type === 'Morning');
+  const viol = records.filter(r => r.type === 'Viol');
+
+  const report = document.getElementById('studentReportView');
+  report.style.display = 'block';
+
+  report.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+      <h3 style="margin:0;">📄 تقرير الطالب</h3>
+      <button onclick="printStudentReport()" style="background:#0077b6;color:#fff;">🖨️ طباعة / PDF</button>
+    </div>
+
+    <div id="studentReportPrintable" style="margin-top:15px;">
+      <div style="background:#f8fafc;padding:15px;border-radius:12px;">
+        <h2 style="margin-top:0;">${escapeHtml(student.studentName)}</h2>
+        <p><strong>الصف/الشعبة:</strong> ${escapeHtml(student.className || '—')}</p>
+        <p><strong>رقم الطالب:</strong> ${escapeHtml(student.studentId || '—')}</p>
+        <p><strong>رقم ولي الأمر:</strong> ${escapeHtml(student.phone || '—')}</p>
+      </div>
+
+      <div class="admin-cards" style="grid-template-columns:repeat(3,1fr);">
+        <div class="admin-card abs" style="cursor:default;">🟩<br>الغياب<br><small>${absence.length} يوم</small></div>
+        <div class="admin-card viol" style="cursor:default;">🟥<br>السلوكيات<br><small>${viol.length} حالة</small></div>
+        <div class="admin-card morning" style="cursor:default;">🔵<br>التأخر<br><small>${late.length} مرة</small></div>
+      </div>
+
+      <h4>📅 تفاصيل السجل</h4>
+      <table>
+        <thead>
+          <tr><th>النوع</th><th>التاريخ</th><th>التفاصيل</th><th>المعلم</th><th>WhatsApp</th></tr>
+        </thead>
+        <tbody>
+          ${records.map(r => `
+            <tr>
+              <td>${escapeHtml(r.typeName || typeLabel(r.type))}</td>
+              <td>${escapeHtml(r.date || '—')}</td>
+              <td>${r.type === 'Viol'
+                    ? escapeHtml(r.violation || '—')
+                    : r.type === 'Morning'
+                      ? 'تأخر صباحي'
+                      : 'غياب'}</td>
+              <td>${escapeHtml(r.teacher || '—')}</td>
+              <td>${r.sent ? '✅ تم الإرسال' : '⏳ لم يرسل'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function typeLabel(type) {
+  return type === 'Abs' ? 'غياب' :
+         type === 'Viol' ? 'سلوكيات' :
+         'تأخر صباحي';
+}
+
+function printStudentReport() {
+  const printable = document.getElementById('studentReportPrintable');
+  if (!printable) return;
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('يرجى السماح بالنوافذ المنبثقة لطباعة التقرير.');
+    return;
+  }
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="utf-8">
+      <title>تقرير الطالب</title>
+      <style>
+        body{font-family:Arial,Tahoma,sans-serif;padding:25px;color:#111}
+        h2,h3,h4{margin-bottom:10px}
+        table{width:100%;border-collapse:collapse;margin-top:15px}
+        th,td{border:1px solid #aaa;padding:8px;text-align:right}
+        th{background:#eee}
+        @media print{button{display:none}}
+      </style>
+    </head>
+    <body>
+      <h2>مدرسة معولة بن شمس</h2>
+      ${printable.innerHTML}
+    </body>
+    </html>
+  `);
+
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function exportSelectedStudentPDF() {
+  const ids = Array.from(adminSelectedIds);
+
+  if (ids.length !== 1) {
+    alert('حدد سجلًا واحدًا فقط للطالب ثم اضغط «تقرير الطالب».\nأو اضغط على اسم الطالب مباشرة.');
+    return;
+  }
+
+  const record = adminRecords.find(r => String(r.id) === String(ids[0]));
+  if (record) showStudentReport(record.studentId);
+}
+
+function exportAdminListPDF() {
+  const records = getVisibleAdminRecords();
+
+  if (!records.length) {
+    alert('لا توجد بيانات لتصديرها.');
+    return;
+  }
+
+  const title = document.getElementById('adminRecordsTitle').textContent || 'سجل الطلاب';
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('يرجى السماح بالنوافذ المنبثقة لتصدير PDF.');
+    return;
+  }
+
+  const rows = records.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(r.studentName || '—')}</td>
+      <td>${escapeHtml(r.className || '—')}</td>
+      <td>${r.type === 'Viol' ? escapeHtml(r.violation || '—') : (r.type === 'Morning' ? 'تأخر صباحي' : 'غياب')}</td>
+      <td>${escapeHtml(r.date || '—')}</td>
+      <td>${escapeHtml(r.teacher || '—')}</td>
+      <td>${r.sent ? 'تم الإرسال' : 'لم يرسل'}</td>
+    </tr>`).join('');
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="utf-8">
+      <title>${escapeHtml(title)}</title>
+      <style>
+        body{font-family:Arial,Tahoma,sans-serif;padding:20px}
+        h2{text-align:center}
+        table{width:100%;border-collapse:collapse;margin-top:20px}
+        th,td{border:1px solid #999;padding:7px;text-align:right}
+        th{background:#eee}
+      </style>
+    </head>
+    <body>
+      <h2>مدرسة معولة بن شمس (5-12)</h2>
+      <h3>${escapeHtml(title)}</h3>
+      <p>تاريخ التقرير: ${new Date().toLocaleDateString('ar-OM')}</p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>الطالب</th><th>الصف/الشعبة</th><th>التفاصيل</th><th>التاريخ</th><th>المعلم</th><th>WhatsApp</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </body>
+    </html>
+  `);
+
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function escapeJs(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+
+
+function toggleAdminStudentLists() {
+  const panel = document.getElementById('adminStudentListsInline');
+  if (!panel) return;
+
+  const isHidden = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = isHidden ? 'block' : 'none';
+
+  if (isHidden) {
+    renderStudentListsSummaryInline();
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+
+async function importPDFListsInline() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  const input = document.getElementById('pdfFilesInline');
+  const status = document.getElementById('pdfImportStatusInline');
+  const files = Array.from(input.files || []);
+
+  if (!files.length) {
+    alert('اختر ملف PDF واحدًا على الأقل.');
+    return;
+  }
+
+  status.textContent = '⏳ جاري قراءة ملفات PDF...';
+
+  let ok = 0;
+  const errors = [];
+
+  for (const file of files) {
+    try {
+      const result = await extractStudentsFromPDF(file);
+      const key = studentListKey(result.grade, result.section);
+      localStudentLists[key] = result;
+      ok++;
+    } catch (err) {
+      console.error(file.name, err);
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  }
+
+  saveLocalStudentLists();
+  renderStudentListsSummaryInline();
+  renderStudentListsSummary();
+  input.value = '';
+
+  status.innerHTML =
+    `✅ تم استيراد <strong>${ok}</strong> قائمة بنجاح.` +
+    (errors.length ? `<br><span style="color:#dc2626;">❌ ${errors.join('<br>')}</span>` : '');
+}
+
+function renderStudentListsSummaryInline() {
+  const box = document.getElementById('studentListsSummaryInline');
+  if (!box) return;
+
+  const keys = Object.keys(localStudentLists).sort((a,b) => {
+    const [ga,sa] = a.split('_').map(Number);
+    const [gb,sb] = b.split('_').map(Number);
+    return ga-gb || sa-sb;
+  });
+
+  if (!keys.length) {
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;text-align:center;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
+    return;
+  }
+
+  box.innerHTML = `
+    <h4 style="text-align:center;">📚 القوائم الحالية (${keys.length})</h4>
+    <div style="overflow:auto;">
+      <table style="margin-top:10px;">
+        <thead>
+          <tr><th>الصف</th><th>الشعبة</th><th>عدد الطلاب</th><th>الملف</th><th>الإجراء</th></tr>
+        </thead>
+        <tbody>
+          ${keys.map(key => {
+            const item = localStudentLists[key];
+            return `<tr>
+              <td>${escapeHtml(item.grade || '')}</td>
+              <td>${escapeHtml(item.section || '')}</td>
+              <td>${item.students.length}</td>
+              <td>${escapeHtml(item.fileName || '')}</td>
+              <td><button onclick="deleteStudentListInline('${escapeJs(key)}')" style="background:#dc2626;color:#fff;">حذف</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function deleteStudentListInline(key) {
+  if (!confirm('هل تريد حذف هذه القائمة؟')) return;
+  delete localStudentLists[key];
+  saveLocalStudentLists();
+  renderStudentListsSummaryInline();
+  renderStudentListsSummary();
+}
+
+function openAdminStudentLists() {
+  if (!adminDashboardUnlocked) {
+    openAdminDashboardLogin();
+    return;
+  }
+  showSection('adminDashboardSection');
+  document.getElementById('adminDashboardLogin').style.display = 'none';
+  document.getElementById('adminDashboardPanel').style.display = 'block';
+  const panel = document.getElementById('adminStudentListsInline');
+  if (panel) {
+    panel.style.display = 'block';
+    renderStudentListsSummaryInline();
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
 }
 
 function toggleDesignerInfo() {
