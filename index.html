@@ -111,6 +111,9 @@ button:hover {
 .student-edit-input{width:95%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:7px;font-family:inherit}
 .student-edit-readonly{background:#f8fafc;color:#64748b}
 .student-editor-msg{padding:10px;border-radius:9px;margin-top:10px;text-align:center;font-weight:bold}
+.student-name-match{color:#166534;font-weight:bold}
+.student-name-mismatch{background:#fff7ed;color:#9a3412;padding:4px 7px;border-radius:6px;font-weight:bold}
+
 @media(max-width:700px){
   .student-editor-filters{display:block}
   .student-editor-filters>*{width:95%;margin:5px auto;display:block}
@@ -220,6 +223,7 @@ button:hover {
           <p style="color:#555;line-height:1.8;text-align:center;">
             يمكنك تعديل <strong>اسم الطالب</strong> و<strong>رقم هاتف ولي الأمر</strong>.
             الرقم التسلسلي والرقم المدرسي ثابتان ولا يمكن تعديلهما.
+            <br><strong>مهم:</strong> عند تسجيل الغياب أو السلوكيات أو التأخر، يتم اعتماد الاسم الموجود في قائمة PDF تلقائيًا.
           </p>
 
           <div class="student-editor-filters">
@@ -1156,6 +1160,86 @@ function teacherInputId(type) {
          'teacherNameMorning';
 }
 
+
+/* =========================================================
+   مطابقة أسماء السجلات مع اسم الطالب في PDF
+   المفتاح الأساسي: رقم الهاتف + الصف/الشعبة، ثم الرقم المدرسي إن توفر
+   ========================================================= */
+
+function getPDFStudentForRecord(record) {
+  const phone = normalizeDigits(record?.phone || '').replace(/\D/g, '');
+  const classParts = String(record?.className || '').split('/');
+  const grade = normalizeValue(classParts[0] || '');
+  const section = normalizeValue(classParts[1] || '');
+
+  if (!phone || !grade || !section) return null;
+
+  const key = studentListKey(grade, section);
+  const list = localStudentLists[key];
+
+  if (!list || !Array.isArray(list.students)) return null;
+
+  return list.students.find(s =>
+    normalizeDigits(s.phone || '').replace(/\D/g, '') === phone
+  ) || null;
+}
+
+function getCanonicalStudentName(record) {
+  const pdfStudent = getPDFStudentForRecord(record);
+  return pdfStudent?.name ? String(pdfStudent.name).trim() : String(record?.studentName || '').trim();
+}
+
+function canonicalizeRecordForPDF(record) {
+  const pdfStudent = getPDFStudentForRecord(record);
+  if (!pdfStudent) {
+    return {
+      ...record,
+      nameMatch: null,
+      pdfStudentName: ''
+    };
+  }
+
+  const currentName = String(record.studentName || '').trim();
+  const pdfName = String(pdfStudent.name || '').trim();
+
+  return {
+    ...record,
+    studentName: pdfName,
+    pdfStudentName: pdfName,
+    nameMatch: currentName === pdfName,
+    pdfSchoolId: pdfStudent.schoolId || '',
+    pdfSerial: pdfStudent.serial || ''
+  };
+}
+
+function canonicalizeRowsAgainstPDF(rows, type, grade, section) {
+  const key = studentListKey(grade, section);
+  const list = localStudentLists[key];
+
+  if (!list || !Array.isArray(list.students)) return rows;
+
+  const byPhone = new Map(
+    list.students.map(s => [
+      normalizeDigits(s.phone || '').replace(/\D/g, ''),
+      s
+    ])
+  );
+
+  return rows.map(r => {
+    const phone = normalizeDigits(r.phone || '').replace(/\D/g, '');
+    const pdfStudent = byPhone.get(phone);
+
+    if (!pdfStudent) return r;
+
+    return {
+      ...r,
+      name: String(pdfStudent.name || r.name || '').trim(),
+      schoolId: pdfStudent.schoolId || r.schoolId || '',
+      pdfSerial: pdfStudent.serial || r.pdfSerial || ''
+    };
+  });
+}
+
 function sendData(rows, type) {
   const loadingSpan = document.getElementById('loading' + type);
   const sendBtn = document.querySelector(`button[onclick="exportData('${type}')"]`);
@@ -1173,7 +1257,10 @@ function sendData(rows, type) {
     return;
   }
 
-  const records = rows.map(r => ({
+  // عند وجود قائمة PDF لنفس الصف والشعبة، يكون اسم PDF هو الاسم المعتمد للسجل.
+  const canonicalRows = canonicalizeRowsAgainstPDF(rows, type, grade, section);
+
+  const records = canonicalRows.map(r => ({
     type: type,
     studentName: r.name,
     studentId: `${type}-${grade}-${section}-${r.phone || r.serial}`,
@@ -1182,7 +1269,9 @@ function sendData(rows, type) {
     teacher: teacher,
     violation: type === 'Viol' ? (r.violation || '') : '',
     date: todayISO(),
-    message: r.message || ''
+    message: r.message || '',
+    pdfSchoolId: r.schoolId || '',
+    pdfSerial: r.pdfSerial || ''
   }));
 
   // استجابة فورية للمعلم بدون انتظار نافذة alert.
@@ -1433,7 +1522,9 @@ async function loadAdminRecords() {
       throw new Error(result.error || 'تعذر تحميل السجلات');
     }
 
-    adminRecords = Array.isArray(result.records) ? result.records : [];
+    adminRecords = Array.isArray(result.records)
+      ? result.records.map(canonicalizeRecordForPDF)
+      : [];
     adminSelectedIds = new Set();
 
     renderAdminRecords();
@@ -1540,8 +1631,11 @@ function renderAdminRecords() {
         <td>
           <button onclick="showStudentReport('${escapeJs(r.studentId)}')"
             style="background:none;border:0;color:#075985;font-weight:bold;text-decoration:underline;">
-            ${escapeHtml(r.studentName || '—')}
+            ${escapeHtml(r.pdfStudentName || r.studentName || '—')}
           </button>
+          ${r.nameMatch === false
+            ? '<div class="student-name-mismatch">⚠️ الاسم في السجل مختلف عن PDF — تم اعتماد اسم PDF</div>'
+            : (r.pdfStudentName ? '<div class="student-name-match">✓ مطابق لقائمة PDF</div>' : '')}
         </td>
         <td>${escapeHtml(r.className || '—')}</td>
         <td>${detail}</td>
@@ -1649,7 +1743,9 @@ async function sendSelectedAdminRecords() {
     const sent = Number(result.sent || 0);
     const failed = Number(result.failed || 0);
 
-    adminRecords = Array.isArray(result.records) ? result.records : adminRecords;
+    adminRecords = Array.isArray(result.records)
+      ? result.records.map(canonicalizeRecordForPDF)
+      : adminRecords;
     adminSelectedIds = new Set();
 
     updateAdminCardsCounts();
@@ -1698,7 +1794,9 @@ async function selectAndSendAllPending() {
     const result = await response.json();
     if (!result.success) throw new Error(result.error || 'فشل الإرسال');
 
-    adminRecords = Array.isArray(result.records) ? result.records : adminRecords;
+    adminRecords = Array.isArray(result.records)
+      ? result.records.map(canonicalizeRecordForPDF)
+      : adminRecords;
     adminSelectedIds = new Set();
     updateAdminCardsCounts();
     renderAdminRecords();
@@ -1768,10 +1866,11 @@ function showStudentReport(studentId) {
     return;
   }
 
-  const student = records[0];
-  const absence = records.filter(r => r.type === 'Abs' && r.studentName !== 'لا يوجد غياب');
-  const late = records.filter(r => r.type === 'Morning');
-  const viol = records.filter(r => r.type === 'Viol');
+  const student = canonicalizeRecordForPDF(records[0]);
+  const canonicalRecords = records.map(canonicalizeRecordForPDF);
+  const absence = canonicalRecords.filter(r => r.type === 'Abs' && r.studentName !== 'لا يوجد غياب');
+  const late = canonicalRecords.filter(r => r.type === 'Morning');
+  const viol = canonicalRecords.filter(r => r.type === 'Viol');
 
   const report = document.getElementById('studentReportView');
   report.style.display = 'block';
@@ -1802,7 +1901,7 @@ function showStudentReport(studentId) {
           <tr><th>النوع</th><th>التاريخ</th><th>التفاصيل</th><th>المعلم</th><th>WhatsApp</th></tr>
         </thead>
         <tbody>
-          ${records.map(r => `
+          ${canonicalRecords.map(r => `
             <tr>
               <td>${escapeHtml(r.typeName || typeLabel(r.type))}</td>
               <td>${escapeHtml(r.date || '—')}</td>
