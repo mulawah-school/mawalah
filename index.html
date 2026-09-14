@@ -650,123 +650,144 @@ function extractSectionNumber(text) {
 
 async function extractStudentsFromPDF(file) {
   if (!window.pdfjsLib) {
-    throw new Error('مكتبة قراءة PDF لم تُحمّل. تأكد من اتصال الإنترنت.');
+    throw new Error('مكتبة قراءة PDF لم تُحمّل.');
   }
 
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
+
   const students = [];
   let detectedGrade = '';
   let detectedSection = '';
 
-  // يحوّل نصوص PDF إلى أسطر مع الحفاظ على ترتيبها البصري.
-  function buildLines(items) {
-    const raw = items
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+
+    const items = content.items
       .map(item => ({
-        x: Number(item.transform?.[4] || 0),
-        y: Number(item.transform?.[5] || 0),
-        str: String(item.str || '')
+        x: Number(item.transform[4]) || 0,
+        y: Number(item.transform[5]) || 0,
+        str: String(item.str || '').trim()
       }))
-      .filter(item => item.str.trim() !== '');
+      .filter(x => x.str);
 
-    // Y في PDF يبدأ من أسفل الصفحة، لذلك الترتيب التنازلي = أعلى إلى أسفل.
-    raw.sort((a,b) => b.y - a.y || a.x - b.x);
+    // PDF.js coordinates have Y increasing upward.
+    items.sort((a,b) => b.y - a.y || a.x - b.x);
 
+    // Group text fragments into visual rows.
     const groups = [];
-    const tolerance = 6;
+    const TOL = 5;
 
-    for (const item of raw) {
-      let g = groups[groups.length - 1];
-      if (!g || Math.abs(item.y - g.y) > tolerance) {
+    for (const item of items) {
+      let g = groups.find(last =>
+        Math.abs(last.y - item.y) <= TOL &&
+        Math.abs(last.y - item.y) === Math.min(
+          ...groups.slice(-3).map(z => Math.abs(z.y - item.y))
+        )
+      );
+
+      if (!g || Math.abs(g.y - item.y) > TOL) {
         g = { y:item.y, items:[] };
         groups.push(g);
       }
       g.items.push(item);
     }
 
-    return groups.map(g => {
-      // مهم: لا نعدل الحروف داخل item.str؛ فقط نوحد المسافات بين عناصر السطر.
-      g.items.sort((a,b) => a.x - b.x);
-      return g.items.map(i => i.str).join(' ')
-        .replace(/[ \t]+/g, ' ')
-        .trim();
-    });
-  }
+    const lines = groups.map(g =>
+      g.items.sort((a,b) => a.x - b.x)
+        .map(x => x.str)
+        .join(' ')
+        .replace(/\s+/g,' ')
+        .trim()
+    ).filter(Boolean);
 
-  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
-    const page = await pdf.getPage(pageNo);
-    const content = await page.getTextContent({
-      normalizeWhitespace: false,
-      disableCombineTextItems: false
-    });
-
-    const lines = buildLines(content.items);
     const pageText = lines.join('\n');
-
     if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
-    if (!detectedSection) detectedSection = extractSectionNumber(pageText);
+
+    if (!detectedSection) {
+      const t = normalizeDigits(pageText);
+      let m = t.match(/(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/);
+      if (!m) m = t.match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
+      if (!m) m = t.match(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/);
+      if (m) detectedSection = m[1];
+    }
 
     for (const line of lines) {
-      const clean = normalizeDigits(line)
-        .replace(/\u00A0/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const clean = normalizeDigits(line).replace(/\s+/g,' ').trim();
 
-      // بداية سجل الطالب: الهاتف ثم الرقم التسلسلي.
-      const startMatch = clean.match(/^(\d{8})\s+(\d{1,3})\s+/);
-      if (!startMatch) continue;
+      // A student row must contain an 8-digit phone number.
+      const phoneMatch = clean.match(/^\d{8}\b/);
+      if (!phoneMatch) continue;
 
-      const phone = startMatch[1];
-      const serial = Number(startMatch[2]);
+      const phone = phoneMatch[0];
 
-      // الرقم المدرسي 12 رقمًا هو العلامة الفاصلة بين الاسم وبقية الأعمدة.
-      const afterStart = clean.slice(startMatch[0].length);
-      const schoolIdMatch = afterStart.match(/\b(\d{12})\b/);
+      // Serial is the number immediately following the phone.
+      const serialMatch = clean.match(/^\d{8}\s+(\d{1,3})\b/);
+      if (!serialMatch) continue;
+      const serial = Number(serialMatch[1]);
+
+      // School ID is the 12-digit number in the same row.
+      const schoolIdMatch = clean.match(/\b\d{12}\b/);
       if (!schoolIdMatch) continue;
 
-      const schoolId = schoolIdMatch[1];
-      const schoolIdIndex = afterStart.indexOf(schoolId);
-      if (schoolIdIndex <= 0) continue;
+      const schoolId = schoolIdMatch[0];
+      const schoolIdIndex = clean.indexOf(schoolId);
 
       /*
-       * الاسم في ملف الوزارة يقع مباشرة بين الرقم التسلسلي والرقم المدرسي.
-       * لا نعتمد على الجنسية أو الحالة لقطع الاسم، لأن ذلك كان سببًا في
-       * فقد بعض الحروف/الكلمات في بعض الأسماء.
+       * IMPORTANT:
+       * PDF extraction may place columns in visual order, but the actual
+       * student name in the Ministry report is the text after the school ID
+       * and before nationality/status columns.
        */
-      const name = afterStart
-        .slice(0, schoolIdIndex)
-        .replace(/\s+/g, ' ')
-        .trim();
+      const afterSchoolId = clean.slice(schoolIdIndex + schoolId.length).trim();
+
+      const nationality = afterSchoolId.match(
+        /^(.*?)\s+(?:عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\b/
+      );
+
+      let name = nationality
+        ? nationality[1].trim()
+        : afterSchoolId
+            .split(/\s+(?:منقول|مستمر|منتظم|مسلمات|افي)\b/)[0]
+            .trim();
+
+      // If the extraction placed the name before the school ID, use the
+      // portion between serial and school ID as a fallback.
+      if (!name || name.length < 3) {
+        const serialEnd = clean.indexOf(serialMatch[1]) + serialMatch[1].length;
+        const beforeSchoolId = clean.slice(serialEnd, schoolIdIndex).trim();
+        name = beforeSchoolId
+          .replace(/^\s+|\s+$/g,'')
+          .replace(/\s+/g,' ')
+          .trim();
+      }
 
       if (!name || name.length < 3) continue;
 
       students.push({
         phone,
-        serial,
         name,
-        schoolId
+        schoolId,
+        serial
       });
     }
   }
 
-  // إزالة التكرار مع إبقاء أول نسخة كما ظهرت في PDF.
-  const unique = [];
-  const seen = new Set();
-
-  for (const st of students) {
-    const key = `${st.serial}|${st.phone}|${st.schoolId}|${st.name}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push(st);
-    }
+  // Keep one copy of each student and ALWAYS sort by PDF serial.
+  const map = new Map();
+  for (const s of students) {
+    const key = `${s.serial}|${s.phone}|${s.schoolId}`;
+    if (!map.has(key)) map.set(key, s);
   }
 
-  // الترتيب النهائي إلزاميًا حسب الرقم التسلسلي في PDF.
-  unique.sort((a,b) => Number(a.serial) - Number(b.serial));
+  const unique = Array.from(map.values()).sort(
+    (a,b) => Number(a.serial) - Number(b.serial)
+  );
 
   if (!detectedGrade) throw new Error('لم أستطع تحديد الصف من ملف PDF.');
   if (!detectedSection) throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
-  if (!unique.length) throw new Error('تم فتح ملف PDF لكن لم أستطع استخراج الطلاب.');
+  if (!unique.length) throw new Error('لم أستطع استخراج الطلاب من ملف PDF.');
 
   return {
     grade: detectedGrade,
