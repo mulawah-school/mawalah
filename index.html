@@ -175,8 +175,19 @@ button:hover {
         <div style="background:#ecfeff;border:1px solid #a5f3fc;padding:12px;border-radius:12px;text-align:center;margin-bottom:15px;">
           📌 <strong>تنبيه:</strong> تسجيل المعلم يحفظ الحالة فقط. إرسال WhatsApp يتم من هذه اللوحة بواسطة الإدارة.
         </div>
-        <div id="adminStudentListsInline" style="background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px;">
-          <h3 style="margin-top:0;text-align:center;">📚 قوائم الطلاب PDF</h3>
+        <div style="display:flex;justify-content:center;margin:12px 0 18px;">
+          <button type="button" onclick="toggleAdminStudentLists()"
+                  style="background:#7c3aed;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
+            📚 قوائم الطلاب
+          </button>
+        </div>
+
+        <div id="adminStudentListsInline" style="display:none;background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <h3 style="margin:0;">📚 إدارة قوائم الطلاب PDF</h3>
+            <button type="button" onclick="toggleAdminStudentLists()" style="background:#64748b;color:#fff;">✖ إغلاق</button>
+          </div>
+
           <p style="color:#555;line-height:1.8;text-align:center;">
             القوائم التي يرفعها المدير هنا تستخدم مباشرة في صفحات الغياب والسلوكيات والتأخر.
             عند رفع قائمة جديدة لنفس الصف والشعبة يتم استبدال القائمة السابقة.
@@ -1765,6 +1776,19 @@ function escapeJs(value) {
 
 
 
+function toggleAdminStudentLists() {
+  const panel = document.getElementById('adminStudentListsInline');
+  if (!panel) return;
+
+  const isHidden = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = isHidden ? 'block' : 'none';
+
+  if (isHidden) {
+    renderStudentListsSummaryInline();
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+
 async function importPDFListsInline() {
   if (!adminDashboardUnlocked) {
     alert('يرجى الدخول إلى الإدارة أولاً.');
@@ -1862,10 +1886,12 @@ function openAdminStudentLists() {
   document.getElementById('adminDashboardLogin').style.display = 'none';
   document.getElementById('adminDashboardPanel').style.display = 'block';
   const panel = document.getElementById('adminStudentListsInline');
-  if (panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
-  renderStudentListsSummaryInline();
+  if (panel) {
+    panel.style.display = 'block';
+    renderStudentListsSummaryInline();
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
 }
-
 
 function toggleDesignerInfo() {
   const info = document.getElementById('designerInfo');
