@@ -82,6 +82,7 @@ button:hover {
   .absent { background: #dc2626; color: #fff; }
   .controls { margin-bottom: 20px; }
 </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
   <!-- الصفحة الرئيسية -->
@@ -89,12 +90,50 @@ button:hover {
     <div style="text-align: center; margin-top: 20px;" class="fade-in">
   <img src="logo_no_bg.png" alt="شعار المدرسة" style="width: 120px; height: auto; margin-bottom: 10px;">
   <h2 style="font-size: 24px; font-weight: bold;">منصة متابعة الطلبة بمدرسة معولة بن شمس</h2>
-<p style="font-size: 16px; margin-top: 5px; color: #333;">للعام الدراسي 2025/2026</p>
+<p style="font-size: 16px; margin-top: 5px; color: #333;">للعام الدراسي 2026/2027</p>
 </div>
     <button class="menu-btn absence-btn" onclick="showSection('absenceSection')">🟩 📋 تسجيل الغياب</button>
     <button class="menu-btn violation-btn" onclick="showSection('violationSection')">🟥 ⚠️ تسجيل المخالفات</button>
     <button class="menu-btn morning-btn" onclick="showSection('morningLateSection')">🔵 ⏰ التأخر الصباحي</button>
+    <button class="menu-btn" style="background:#475569;" onclick="openAdminLogin()">⚙️ إدارة قوائم الطلاب</button>
 
+  </div>
+
+  <!-- إدارة قوائم الطلاب -->
+  <div id="studentAdminSection" class="hidden">
+    <div class="top-bar">
+      <button class="back-btn" onclick="showSection('mainMenu')">🏠 رجوع</button>
+      <h2><span class="icon">📚</span>إدارة قوائم الطلاب</h2>
+    </div>
+    <div class="section-content">
+      <div id="adminLoginBox" style="max-width:420px;margin:30px auto;background:#fff;padding:25px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.12);">
+        <div style="font-size:44px;">🔐</div>
+        <h3>الدخول إلى إدارة القوائم</h3>
+        <p>أدخل الرقم السري المكون من 4 أرقام</p>
+        <input id="adminPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"
+               style="font-size:24px;text-align:center;letter-spacing:10px;width:180px;">
+        <br><br>
+        <button onclick="verifyAdminPin()" style="background:#0077b6;color:#fff;">دخول</button>
+      </div>
+
+      <div id="adminPanel" style="display:none;">
+        <div style="max-width:850px;margin:auto;background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.12);">
+          <h3>📄 رفع قوائم الطلاب بصيغة PDF</h3>
+          <p style="color:#555;line-height:1.8;">
+            ارفع ملفًا أو عدة ملفات. سيتم قراءة الصف والشعبة والاسم ورقم الهاتف تلقائيًا من القوائم.
+            يمكنك رفع قائمة جديدة لنفس الصف والشعبة لاستبدال القائمة السابقة.
+          </p>
+          <input id="pdfFiles" type="file" accept="application/pdf,.pdf" multiple
+                 style="padding:10px;width:90%;max-width:600px;">
+          <br><br>
+          <button onclick="importPDFLists()" style="background:#0077b6;color:#fff;">📥 استيراد القوائم</button>
+          <button onclick="clearStudentLists()" style="background:#dc2626;color:#fff;">🗑️ حذف جميع القوائم</button>
+          <div id="pdfImportStatus" style="margin-top:15px;font-weight:bold;"></div>
+
+          <div id="studentListsSummary" style="margin-top:20px;"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- صفحة الغياب -->
@@ -207,21 +246,28 @@ button:hover {
   </div>
 
 <script>
-const SHEET_URLS = ['https://docs.google.com/spreadsheets/d/e/2PACX-1vSJ3CGPHmBFZ8myoys49bw1MLrC_tfdcKuZ-ZBSMczVqLZbxzSe-LZbyqCDv2YZLQ/pub?gid=626465739&single=true&output=csv'];
+// إعداد عامل PDF.js
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+const SHEET_URLS = ['https://script.google.com/macros/s/AKfycbzlQe4iAbLDA53MFkP8LRVFjFO_K9yEkIT1ssh-BNje_VyogUuIaNTiK2YPdW6zP7Bh0Q/exec'];
 const EXPORT_WEBAPP_URLS = {
-  Abs: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJ3CGPHmBFZ8myoys49bw1MLrC_tfdcKuZ-ZBSMczVqLZbxzSe-LZbyqCDv2YZLQ/pub?gid=626465739&single=true&output=csv",
-  Viol: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJ3CGPHmBFZ8myoys49bw1MLrC_tfdcKuZ-ZBSMczVqLZbxzSe-LZbyqCDv2YZLQ/pub?gid=626465739&single=true&output=csv",
-  Morning: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSJ3CGPHmBFZ8myoys49bw1MLrC_tfdcKuZ-ZBSMczVqLZbxzSe-LZbyqCDv2YZLQ/pub?gid=626465739&single=true&output=csv"
+  Abs: "https://script.google.com/macros/s/AKfycbwAUS5cpNyftQe0UTZBCWkZLdZtHpnf_J0iScVJY7YJ8-QZWPebrMfMBlXXru9cv6Ft3Q/exec",
+  Viol: "https://script.google.com/macros/s/AKfycbwAUS5cpNyftQe0UTZBCWkZLdZtHpnf_J0iScVJY7YJ8-QZWPebrMfMBlXXru9cv6Ft3Q/exec",
+  Morning: "https://script.google.com/macros/s/AKfycbwAUS5cpNyftQe0UTZBCWkZLdZtHpnf_J0iScVJY7YJ8-QZWPebrMfMBlXXru9cv6Ft3Q/exec"
 };
 const state = { Abs: {students: [], attendance: {}}, Viol: {students: [], violations: {}}, Morning: {students: [], status: {}} };
 
 
 function showSection(id) {
-  document.querySelectorAll('#mainMenu, #absenceSection, #violationSection, #morningLateSection')
+  document.querySelectorAll('#mainMenu, #absenceSection, #violationSection, #morningLateSection, #studentAdminSection')
     .forEach(div => div.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 
   if (id === 'mainMenu') {
+      adminUnlocked = false;
       state.Abs.attendance = {};
       state.Morning.status = {};
       state.Viol.violations = {};
@@ -241,42 +287,491 @@ function showSection(id) {
 }
 
 
+function normalizeDigits(value) {
+  return String(value || '')
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+}
+
+function normalizeValue(value) {
+  return normalizeDigits(value)
+    .replace(/\uFEFF/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+const GRADE_NAMES = {
+  '5': 'الخامس',
+  '6': 'السادس',
+  '7': 'السابع',
+  '8': 'الثامن',
+  '9': 'التاسع',
+  '10': 'العاشر',
+  '11': 'الحاديعشر',
+  '12': 'الثانيعشر'
+};
+
+let localStudentLists = {};
+let adminUnlocked = false;
+
+function studentListKey(grade, section) {
+  return normalizeValue(grade) + '_' + normalizeValue(section);
+}
+
+function saveLocalStudentLists() {
+  localStorage.setItem('mawalah_student_lists_v2', JSON.stringify(localStudentLists));
+}
+
+function loadLocalStudentLists() {
+  try {
+    const saved = localStorage.getItem('mawalah_student_lists_v2');
+    localStudentLists = saved ? JSON.parse(saved) : {};
+  } catch (e) {
+    console.error('تعذر قراءة القوائم المحفوظة', e);
+    localStudentLists = {};
+  }
+  renderStudentListsSummary();
+}
+
+function getImportedSections(grade) {
+  const g = normalizeValue(grade);
+  return Object.keys(localStudentLists)
+    .filter(k => k.startsWith(g + '_'))
+    .map(k => k.split('_')[1])
+    .filter(Boolean)
+    .sort((a,b) => Number(a)-Number(b));
+}
+
 function updateSections(type) {
   const grade = document.getElementById('gradeSelect' + type).value;
   const sectionSelect = document.getElementById('sectionSelect' + type);
   sectionSelect.innerHTML = '<option value="">اختر</option>';
-  let count = 3;
-  if (grade === '10') count = 4; else if (grade === '11') count = 6; else if (grade === '12') count = 5;
-  for (let i = 1; i <= count; i++) {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = 'الشعبة ' + i;
-    sectionSelect.appendChild(opt);
+
+  let sections = getImportedSections(grade);
+
+  // في حال لم توجد قوائم PDF لهذا الصف، نُبقي التقسيم القديم كخيار احتياطي.
+  if (!sections.length) {
+    let count = 3;
+    if (grade === '10') count = 4;
+    else if (grade === '11') count = 6;
+    else if (grade === '12') count = 5;
+    sections = Array.from({length: count}, (_, i) => String(i + 1));
   }
+
+  sections.forEach(section => {
+    const opt = document.createElement('option');
+    opt.value = section;
+    opt.textContent = 'الشعبة ' + section;
+    sectionSelect.appendChild(opt);
+  });
 }
 
 async function loadCSVData(type) {
   const grade = document.getElementById('gradeSelect' + type).value.trim();
   const section = document.getElementById('sectionSelect' + type).value.trim();
-  if (!grade || !section) { alert('يرجى اختيار الصف والشعبة'); return; }
+  if (!grade || !section) {
+    alert('يرجى اختيار الصف والشعبة');
+    return;
+  }
 
+  const key = studentListKey(grade, section);
+
+  // القوائم المحلية من PDF لها الأولوية.
+  if (localStudentLists[key] && Array.isArray(localStudentLists[key].students)) {
+    state[type].students = localStudentLists[key].students.map((s, i) => ({
+      id: i + 1,
+      phone: s.phone || '',
+      name: s.name || '',
+      grade: grade,
+      section: section
+    }));
+
+    if (!state[type].students.length) {
+      alert('القائمة موجودة ولكن لا توجد بيانات طلاب.');
+      return;
+    }
+
+    if (type === 'Abs') renderAbsence();
+    else if (type === 'Viol') renderViolations();
+    else renderMorningLate();
+    return;
+  }
+
+  // احتياطي: مصدر Google القديم إذا لم يتم رفع PDF لهذا الصف والشعبة.
   try {
     let combinedText = '';
     for (const url of SHEET_URLS) {
-      const res = await fetch(url);
+      const res = await fetch(url, {cache: 'no-store'});
       if (!res.ok) continue;
       const text = await res.text();
       combinedText += text.trim() + '\n';
     }
-    const lines = combinedText.trim().split('\n');
-    const students = lines.slice(1).map((line, i) => {
-      const cols = line.split(',');
-      return { id: i + 1, phone: cols[0]?.trim() || '', name: cols[1]?.trim() || '', grade: cols[3]?.trim() || '', section: cols[4]?.trim() || '' };
-    }).filter(s => s.grade === grade && s.section === section);
+
+    const rows = parseCSV(combinedText);
+    const students = rows.slice(1).map((cols, i) => ({
+      id: i + 1,
+      phone: cols[0]?.trim() || '',
+      name: cols[1]?.trim() || '',
+      grade: normalizeValue(cols[3]),
+      section: normalizeValue(cols[4])
+    })).filter(s =>
+      s.grade === normalizeValue(grade) &&
+      s.section === normalizeValue(section)
+    );
 
     state[type].students = students;
-    if (type === 'Abs') renderAbsence(); else if (type === 'Viol') renderViolations(); else renderMorningLate();
-  } catch (err) { console.error(err); alert('تعذر تحميل البيانات'); }
+    if (type === 'Abs') renderAbsence();
+    else if (type === 'Viol') renderViolations();
+    else renderMorningLate();
+  } catch (err) {
+    console.error(err);
+    alert('تعذر تحميل البيانات');
+  }
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], value = '', quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+
+    if (c === '"') {
+      if (quoted && n === '"') {
+        value += '"';
+        i++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (c === ',' && !quoted) {
+      row.push(value); value = '';
+    } else if ((c === '\n' || c === '\r') && !quoted) {
+      if (c === '\r' && n === '\n') i++;
+      row.push(value); value = '';
+      if (row.some(x => String(x).trim() !== '')) rows.push(row);
+      row = [];
+    } else {
+      value += c;
+    }
+  }
+
+  if (value !== '' || row.length) {
+    row.push(value);
+    if (row.some(x => String(x).trim() !== '')) rows.push(row);
+  }
+  return rows;
+}
+
+function openAdminLogin() {
+  showSection('studentAdminSection');
+  document.getElementById('adminLoginBox').style.display = 'block';
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('adminPin').value = '';
+  document.getElementById('adminPin').focus();
+}
+
+function verifyAdminPin() {
+  const pin = document.getElementById('adminPin').value.trim();
+
+  if (pin === '1982') {
+    adminUnlocked = true;
+    document.getElementById('adminLoginBox').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'block';
+    renderStudentListsSummary();
+  } else {
+    document.getElementById('adminPin').value = '';
+    alert('❌ الرقم السري غير صحيح');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadLocalStudentLists();
+
+  const pinInput = document.getElementById('adminPin');
+  if (pinInput) {
+    pinInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') verifyAdminPin();
+    });
+  }
+});
+
+function extractGradeNumber(text) {
+  const t = normalizeDigits(text).replace(/\s+/g, '');
+  const patterns = [
+    ['12', 'الثانيعشر'], ['11', 'الحاديعشر'], ['10', 'العاشر'],
+    ['9', 'التاسع'], ['8', 'الثامن'], ['7', 'السابع'],
+    ['6', 'السادس'], ['5', 'الخامس']
+  ];
+  for (const [num, word] of patterns) {
+    if (t.includes(word)) return num;
+  }
+
+  const m = t.match(/الصف[^0-9٠-٩]{0,20}([5-9]|1[0-2])/);
+  return m ? normalizeDigits(m[1]) : '';
+}
+
+function extractSectionNumber(text) {
+  const t = normalizeDigits(text);
+  // في التقرير يظهر رقم الشعبة قبل "/" بجانب السنة الدراسية، مثل: 1 /2027/2026
+  const matches = [...t.matchAll(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/g)];
+  if (matches.length) return matches[0][1];
+
+  // بديل: "الصف: الخامس" ثم رقم الشعبة قبل الشرطة/السنة.
+  const near = t.match(/الصف[^0-9]{0,40}(\d{1,2})\s*\//);
+  return near ? near[1] : '';
+}
+
+async function extractStudentsFromPDF(file) {
+  if (!window.pdfjsLib) {
+    throw new Error('مكتبة قراءة PDF لم تُحمّل. تأكد من اتصال الإنترنت.');
+  }
+
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
+
+  const students = [];
+  let detectedGrade = '';
+  let detectedSection = '';
+
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+
+    // ترتيب عناصر PDF من أعلى الصفحة إلى أسفلها، ثم تجميع عناصر كل صف.
+    const rawItems = content.items
+      .map(item => ({
+        x: item.transform[4],
+        y: item.transform[5],
+        str: String(item.str || '').trim()
+      }))
+      .filter(item => item.str);
+
+    rawItems.sort((a, b) => a.y - b.y || a.x - b.x);
+
+    const groups = [];
+    const LINE_TOLERANCE = 7;
+
+    rawItems.forEach(item => {
+      let group = groups[groups.length - 1];
+
+      if (!group || Math.abs(item.y - group.y) > LINE_TOLERANCE) {
+        group = { y: item.y, ys: [item.y], items: [] };
+        groups.push(group);
+      } else {
+        group.ys.push(item.y);
+        group.y = group.ys.reduce((a,b) => a + b, 0) / group.ys.length;
+      }
+
+      group.items.push(item);
+    });
+
+    const lines = groups.map(group =>
+      group.items
+        .sort((a,b) => a.x - b.x)
+        .map(item => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    );
+
+    const pageText = lines.join('\n');
+
+    if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
+
+    if (!detectedSection) {
+      // التقرير المعروض يكتبها بهذا الشكل تقريبًا:
+      // 2027/2026 : السنة الدراسية   1 /   الخامس : الصف
+      let m = normalizeDigits(pageText).match(
+        /(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/
+      );
+      if (!m) {
+        m = normalizeDigits(pageText).match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
+      }
+      if (!m) {
+        m = normalizeDigits(pageText).match(/(\d{1,2})\s*\/\s*20\d{2}/);
+      }
+      if (m) detectedSection = m[1];
+    }
+
+    // في هذا النوع من القوائم يكون ترتيب الصف:
+    // الهاتف | المنطقة | حالة القيد | الجنسية | الرقم المدرسي | الاسم | م
+    for (const line of lines) {
+      const clean = normalizeDigits(line).replace(/\s+/g, ' ').trim();
+
+      // كل طالب يبدأ برقم هاتف عماني من 8 أرقام.
+      if (!/^\d{8}\b/.test(clean)) continue;
+
+      const phoneMatch = clean.match(/^(\d{8})\b/);
+      const schoolIdMatch = clean.match(/\b(\d{12})\b/);
+      const serialMatch = clean.match(/\s(\d{1,3})\s*$/);
+
+      if (!phoneMatch || !schoolIdMatch || !serialMatch) continue;
+
+      const schoolId = schoolIdMatch[1];
+      const serial = serialMatch[1];
+      const schoolIdIndex = clean.indexOf(schoolId);
+      const serialIndex = clean.lastIndexOf(serial);
+
+      if (schoolIdIndex < 0 || serialIndex <= schoolIdIndex + schoolId.length) continue;
+
+      let name = clean
+        .slice(schoolIdIndex + schoolId.length, serialIndex)
+        .trim();
+
+      // إزالة أي نصوص غير متوقعة من بداية الاسم إذا ظهرت في استخراج PDF.
+      name = name
+        .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
+        .trim();
+
+      if (!name || name.length < 3) continue;
+
+      students.push({
+        phone: phoneMatch[1],
+        name,
+        schoolId,
+        serial
+      });
+    }
+  }
+
+  // إزالة التكرار بين صفحات الملف.
+  const unique = [];
+  const seen = new Set();
+
+  students.forEach(student => {
+    const key = student.phone + '|' + student.name;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(student);
+    }
+  });
+
+  if (!detectedGrade) {
+    throw new Error('لم أستطع تحديد الصف من ملف PDF.');
+  }
+
+  if (!detectedSection) {
+    throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
+  }
+
+  if (!unique.length) {
+    throw new Error('تم فتح ملف PDF لكن لم أستطع استخراج أسماء الطلاب وأرقام الهواتف.');
+  }
+
+  return {
+    grade: detectedGrade,
+    section: detectedSection,
+    students: unique,
+    fileName: file.name,
+    updatedAt: new Date().toLocaleString('ar-OM')
+  };
+}
+
+async function importPDFLists() {
+  if (!adminUnlocked) return openAdminLogin();
+
+  const input = document.getElementById('pdfFiles');
+  const status = document.getElementById('pdfImportStatus');
+  const files = Array.from(input.files || []);
+
+  if (!files.length) {
+    alert('اختر ملف PDF واحدًا على الأقل.');
+    return;
+  }
+
+  status.textContent = '⏳ جاري قراءة ملفات PDF...';
+
+  let ok = 0;
+  const errors = [];
+
+  for (const file of files) {
+    try {
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        throw new Error('الملف ليس PDF.');
+      }
+
+      const result = await extractStudentsFromPDF(file);
+      const key = studentListKey(result.grade, result.section);
+
+      // استبدال قائمة الصف/الشعبة نفسها بالقائمة الجديدة.
+      localStudentLists[key] = result;
+      ok++;
+
+    } catch (err) {
+      console.error(file.name, err);
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  }
+
+  saveLocalStudentLists();
+  renderStudentListsSummary();
+  input.value = '';
+
+  status.innerHTML =
+    `✅ تم استيراد <strong>${ok}</strong> ملف/ملفات بنجاح.` +
+    (errors.length ? `<br><span style="color:#dc2626;">❌ ${errors.join('<br>')}</span>` : '');
+}
+
+function renderStudentListsSummary() {
+  const box = document.getElementById('studentListsSummary');
+  if (!box) return;
+
+  const keys = Object.keys(localStudentLists).sort((a,b) => {
+    const [ga,sa] = a.split('_').map(Number);
+    const [gb,sb] = b.split('_').map(Number);
+    return ga-gb || sa-sb;
+  });
+
+  if (!keys.length) {
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
+    return;
+  }
+
+  box.innerHTML = `
+    <h4>📚 القوائم المحفوظة (${keys.length})</h4>
+    <div style="overflow:auto;">
+      <table style="margin-top:10px;">
+        <thead><tr><th>الصف</th><th>الشعبة</th><th>عدد الطلاب</th><th>الملف</th><th>آخر تحديث</th><th>إجراء</th></tr></thead>
+        <tbody>
+          ${keys.map(key => {
+            const item = localStudentLists[key];
+            return `<tr>
+              <td>${item.grade}</td>
+              <td>${item.section}</td>
+              <td>${item.students.length}</td>
+              <td>${escapeHtml(item.fileName || '')}</td>
+              <td>${escapeHtml(item.updatedAt || '')}</td>
+              <td><button onclick="deleteStudentList('${key}')" style="background:#dc2626;color:#fff;">حذف</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:#666;margin-top:12px;">
+      القوائم المستوردة محفوظة على هذا الجهاز/المتصفح. عند رفع ملف جديد لنفس الصف والشعبة سيتم استبداله تلقائيًا.
+    </p>`;
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
+  }[ch]));
+}
+
+function deleteStudentList(key) {
+  if (!confirm('هل تريد حذف هذه القائمة؟')) return;
+  delete localStudentLists[key];
+  saveLocalStudentLists();
+  renderStudentListsSummary();
+  alert('تم حذف القائمة.');
+}
+
+function clearStudentLists() {
+  if (!confirm('سيتم حذف جميع قوائم PDF المحفوظة على هذا الجهاز. هل أنت متأكد؟')) return;
+  localStudentLists = {};
+  saveLocalStudentLists();
+  renderStudentListsSummary();
+  alert('تم حذف جميع القوائم.');
 }
 
 function renderAbsence() {
