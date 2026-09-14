@@ -434,12 +434,12 @@ function studentListKey(grade, section) {
 }
 
 function saveLocalStudentLists() {
-  localStorage.setItem('mawalah_student_lists_v3', JSON.stringify(localStudentLists));
+  localStorage.setItem('mawalah_student_lists_v2', JSON.stringify(localStudentLists));
 }
 
 function loadLocalStudentLists() {
   try {
-    const saved = localStorage.getItem('mawalah_student_lists_v3');
+    const saved = localStorage.getItem('mawalah_student_lists_v2');
     localStudentLists = saved ? JSON.parse(saved) : {};
   } catch (e) {
     console.error('تعذر قراءة القوائم المحفوظة', e);
@@ -493,18 +493,13 @@ async function loadCSVData(type) {
 
   // القوائم المحلية من PDF لها الأولوية.
   if (localStudentLists[key] && Array.isArray(localStudentLists[key].students)) {
-    state[type].students = localStudentLists[key].students
-      .slice()
-      .sort((a,b) => Number(a.serial || 0) - Number(b.serial || 0))
-      .map((s, i) => ({
-        id: i + 1,
-        phone: s.phone || '',
-        name: s.name || '',
-        grade: grade,
-        section: section,
-        serial: Number(s.serial || (i + 1)),
-        schoolId: s.schoolId || ''
-      }));
+    state[type].students = localStudentLists[key].students.map((s, i) => ({
+      id: i + 1,
+      phone: s.phone || '',
+      name: s.name || '',
+      grade: grade,
+      section: section
+    }));
 
     if (!state[type].students.length) {
       alert('القائمة موجودة ولكن لا توجد بيانات طلاب.');
@@ -650,7 +645,7 @@ function extractSectionNumber(text) {
 
 async function extractStudentsFromPDF(file) {
   if (!window.pdfjsLib) {
-    throw new Error('مكتبة قراءة PDF لم تُحمّل.');
+    throw new Error('مكتبة قراءة PDF لم تُحمّل. تأكد من اتصال الإنترنت.');
   }
 
   const buffer = await file.arrayBuffer();
@@ -664,109 +659,98 @@ async function extractStudentsFromPDF(file) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
 
-    const items = content.items
+    // ترتيب عناصر PDF من أعلى الصفحة إلى أسفلها، ثم تجميع عناصر كل صف.
+    const rawItems = content.items
       .map(item => ({
-        x: Number(item.transform[4]) || 0,
-        y: Number(item.transform[5]) || 0,
+        x: item.transform[4],
+        y: item.transform[5],
         str: String(item.str || '').trim()
       }))
-      .filter(x => x.str);
+      .filter(item => item.str);
 
-    // PDF.js coordinates have Y increasing upward.
-    items.sort((a,b) => b.y - a.y || a.x - b.x);
+    // PDF.js يستخدم إحداثيات Y من أسفل الصفحة إلى أعلاها،
+    // لذلك يجب ترتيب الصفوف تنازليًا حتى تظهر الأسماء بنفس ترتيب الكشف (1، 2، 3 ...).
+    rawItems.sort((a, b) => b.y - a.y || a.x - b.x);
 
-    // Group text fragments into visual rows.
     const groups = [];
-    const TOL = 5;
+    const LINE_TOLERANCE = 7;
 
-    for (const item of items) {
-      let g = groups.find(last =>
-        Math.abs(last.y - item.y) <= TOL &&
-        Math.abs(last.y - item.y) === Math.min(
-          ...groups.slice(-3).map(z => Math.abs(z.y - item.y))
-        )
-      );
+    rawItems.forEach(item => {
+      let group = groups[groups.length - 1];
 
-      if (!g || Math.abs(g.y - item.y) > TOL) {
-        g = { y:item.y, items:[] };
-        groups.push(g);
+      if (!group || Math.abs(item.y - group.y) > LINE_TOLERANCE) {
+        group = { y: item.y, ys: [item.y], items: [] };
+        groups.push(group);
+      } else {
+        group.ys.push(item.y);
+        group.y = group.ys.reduce((a,b) => a + b, 0) / group.ys.length;
       }
-      g.items.push(item);
-    }
 
-    const lines = groups.map(g =>
-      g.items.sort((a,b) => a.x - b.x)
-        .map(x => x.str)
+      group.items.push(item);
+    });
+
+    const lines = groups.map(group =>
+      group.items
+        .sort((a,b) => a.x - b.x)
+        .map(item => item.str)
         .join(' ')
-        .replace(/\s+/g,' ')
+        .replace(/\s+/g, ' ')
         .trim()
-    ).filter(Boolean);
+    );
 
     const pageText = lines.join('\n');
+
     if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
 
     if (!detectedSection) {
-      const t = normalizeDigits(pageText);
-      let m = t.match(/(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/);
-      if (!m) m = t.match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
-      if (!m) m = t.match(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/);
+      // التقرير المعروض يكتبها بهذا الشكل تقريبًا:
+      // 2027/2026 : السنة الدراسية   1 /   الخامس : الصف
+      let m = normalizeDigits(pageText).match(
+        /(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/
+      );
+      if (!m) {
+        m = normalizeDigits(pageText).match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
+      }
+      if (!m) {
+        m = normalizeDigits(pageText).match(/(\d{1,2})\s*\/\s*20\d{2}/);
+      }
       if (m) detectedSection = m[1];
     }
 
+    // في هذا النوع من القوائم يكون ترتيب الصف:
+    // الهاتف | المنطقة | حالة القيد | الجنسية | الرقم المدرسي | الاسم | م
     for (const line of lines) {
-      const clean = normalizeDigits(line).replace(/\s+/g,' ').trim();
+      const clean = normalizeDigits(line).replace(/\s+/g, ' ').trim();
 
-      // A student row must contain an 8-digit phone number.
-      const phoneMatch = clean.match(/^\d{8}\b/);
-      if (!phoneMatch) continue;
+      // كل طالب يبدأ برقم هاتف عماني من 8 أرقام.
+      if (!/^\d{8}\b/.test(clean)) continue;
 
-      const phone = phoneMatch[0];
+      const phoneMatch = clean.match(/^(\d{8})\b/);
+      const schoolIdMatch = clean.match(/\b(\d{12})\b/);
+      const serialMatch = clean.match(/\s(\d{1,3})\s*$/);
 
-      // Serial is the number immediately following the phone.
-      const serialMatch = clean.match(/^\d{8}\s+(\d{1,3})\b/);
-      if (!serialMatch) continue;
-      const serial = Number(serialMatch[1]);
+      if (!phoneMatch || !schoolIdMatch || !serialMatch) continue;
 
-      // School ID is the 12-digit number in the same row.
-      const schoolIdMatch = clean.match(/\b\d{12}\b/);
-      if (!schoolIdMatch) continue;
-
-      const schoolId = schoolIdMatch[0];
+      const schoolId = schoolIdMatch[1];
+      const serial = serialMatch[1];
       const schoolIdIndex = clean.indexOf(schoolId);
+      const serialIndex = clean.lastIndexOf(serial);
 
-      /*
-       * IMPORTANT:
-       * PDF extraction may place columns in visual order, but the actual
-       * student name in the Ministry report is the text after the school ID
-       * and before nationality/status columns.
-       */
-      const afterSchoolId = clean.slice(schoolIdIndex + schoolId.length).trim();
+      if (schoolIdIndex < 0 || serialIndex <= schoolIdIndex + schoolId.length) continue;
 
-      const nationality = afterSchoolId.match(
-        /^(.*?)\s+(?:عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\b/
-      );
+      let name = clean
+        .slice(schoolIdIndex + schoolId.length, serialIndex)
+        .trim();
 
-      let name = nationality
-        ? nationality[1].trim()
-        : afterSchoolId
-            .split(/\s+(?:منقول|مستمر|منتظم|مسلمات|افي)\b/)[0]
-            .trim();
-
-      // If the extraction placed the name before the school ID, use the
-      // portion between serial and school ID as a fallback.
-      if (!name || name.length < 3) {
-        const serialEnd = clean.indexOf(serialMatch[1]) + serialMatch[1].length;
-        const beforeSchoolId = clean.slice(serialEnd, schoolIdIndex).trim();
-        name = beforeSchoolId
-          .replace(/^\s+|\s+$/g,'')
-          .replace(/\s+/g,' ')
-          .trim();
-      }
+      // إزالة أي نصوص غير متوقعة من بداية الاسم إذا ظهرت في استخراج PDF.
+      name = name
+        .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
+        .trim();
 
       if (!name || name.length < 3) continue;
 
       students.push({
-        phone,
+        phone: phoneMatch[1],
         name,
         schoolId,
         serial
@@ -774,20 +758,32 @@ async function extractStudentsFromPDF(file) {
     }
   }
 
-  // Keep one copy of each student and ALWAYS sort by PDF serial.
-  const map = new Map();
-  for (const s of students) {
-    const key = `${s.serial}|${s.phone}|${s.schoolId}`;
-    if (!map.has(key)) map.set(key, s);
+  // إزالة التكرار بين صفحات الملف.
+  const unique = [];
+  const seen = new Set();
+
+  students.forEach(student => {
+    const key = student.phone + '|' + student.name;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(student);
+    }
+  });
+
+  // الحفاظ على ترتيب الكشف الأصلي حسب الرقم التسلسلي.
+  unique.sort((a, b) => Number(a.serial) - Number(b.serial));
+
+  if (!detectedGrade) {
+    throw new Error('لم أستطع تحديد الصف من ملف PDF.');
   }
 
-  const unique = Array.from(map.values()).sort(
-    (a,b) => Number(a.serial) - Number(b.serial)
-  );
+  if (!detectedSection) {
+    throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
+  }
 
-  if (!detectedGrade) throw new Error('لم أستطع تحديد الصف من ملف PDF.');
-  if (!detectedSection) throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
-  if (!unique.length) throw new Error('لم أستطع استخراج الطلاب من ملف PDF.');
+  if (!unique.length) {
+    throw new Error('تم فتح ملف PDF لكن لم أستطع استخراج أسماء الطلاب وأرقام الهواتف.');
+  }
 
   return {
     grade: detectedGrade,
@@ -908,7 +904,7 @@ function clearStudentLists() {
 function renderAbsence() {
   const tbody = document.getElementById('studentsBodyAbs');
   tbody.innerHTML = '';
-  state.Abs.students.slice().sort((a,b)=>Number(a.serial||a.id||0)-Number(b.serial||b.id||0)).forEach((student, index) => {
+  state.Abs.students.forEach((student, index) => {
     if (!(student.id in state.Abs.attendance)) state.Abs.attendance[student.id] = true;
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
@@ -930,7 +926,7 @@ function renderViolations() {
   const tbody = document.getElementById('studentsBodyViol');
   tbody.innerHTML = '';
 
-  state.Viol.students.slice().sort((a,b)=>Number(a.serial||a.id||0)-Number(b.serial||b.id||0)).forEach((student, index) => {
+  state.Viol.students.forEach((student, index) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${index + 1}</td>
@@ -1242,7 +1238,7 @@ function showTeacherToast(message, isError = false) {
 function renderMorningLate() {
   const tbody = document.getElementById('studentsBodyMorning');
   tbody.innerHTML = '';
-  state.Morning.students.slice().sort((a,b)=>Number(a.serial||a.id||0)-Number(b.serial||b.id||0)).forEach((student, index) => {
+  state.Morning.students.forEach((student, index) => {
     if (!(student.id in state.Morning.status)) state.Morning.status[student.id] = true;
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
@@ -1612,6 +1608,7 @@ async function sendSelectedAdminRecords() {
   }
 }
 
+async 
 async function selectAndSendAllPending() {
   const pending = getVisibleAdminRecords().filter(r => !r.sent);
 
