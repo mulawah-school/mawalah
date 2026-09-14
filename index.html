@@ -100,6 +100,25 @@ button:hover {
 
 </style>
 <style>
+/* ===== محرر قوائم الطلاب ===== */
+.student-editor-card{background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px}
+.student-editor-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.student-editor-filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:15px 0}
+.student-editor-filters>*{padding:10px;border:1px solid #ccc;border-radius:8px}
+.student-editor-table{width:100%;border-collapse:collapse;background:#fff;margin-top:10px}
+.student-editor-table th,.student-editor-table td{padding:9px;border:1px solid #ddd;text-align:right}
+.student-editor-table th{background:#ede9fe;color:#4c1d95}
+.student-edit-input{width:95%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:7px;font-family:inherit}
+.student-edit-readonly{background:#f8fafc;color:#64748b}
+.student-editor-msg{padding:10px;border-radius:9px;margin-top:10px;text-align:center;font-weight:bold}
+@media(max-width:700px){
+  .student-editor-filters{display:block}
+  .student-editor-filters>*{width:95%;margin:5px auto;display:block}
+  .student-editor-table{font-size:13px}
+  .student-edit-input{width:100%}
+}
+</style>
+<style>
 .teacher-send-fast {
   transition: opacity .15s ease, transform .15s ease;
 }
@@ -181,11 +200,49 @@ button:hover {
         <div style="background:#ecfeff;border:1px solid #a5f3fc;padding:12px;border-radius:12px;text-align:center;margin-bottom:15px;">
           📌 <strong>تنبيه:</strong> تسجيل المعلم يحفظ الحالة فقط. إرسال WhatsApp يتم من هذه اللوحة بواسطة الإدارة.
         </div>
-        <div style="display:flex;justify-content:center;margin:12px 0 18px;">
+        <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;">
           <button type="button" onclick="toggleAdminStudentLists()"
                   style="background:#7c3aed;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
             📚 قوائم الطلاب
           </button>
+          <button type="button" onclick="toggleStudentEditor()"
+                  style="background:#f59e0b;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
+            ✏️ تعديل قوائم الطلاب
+          </button>
+        </div>
+
+        <div id="studentEditorInline" style="display:none;" class="student-editor-card">
+          <div class="student-editor-head">
+            <h3 style="margin:0;">✏️ تعديل قوائم الطلاب</h3>
+            <button type="button" onclick="toggleStudentEditor()" style="background:#64748b;color:#fff;">✖ إغلاق</button>
+          </div>
+
+          <p style="color:#555;line-height:1.8;text-align:center;">
+            يمكنك تعديل <strong>اسم الطالب</strong> و<strong>رقم هاتف ولي الأمر</strong>.
+            الرقم التسلسلي والرقم المدرسي ثابتان ولا يمكن تعديلهما.
+          </p>
+
+          <div class="student-editor-filters">
+            <select id="studentEditorGrade" onchange="updateStudentEditorSections()">
+              <option value="">اختر الصف</option>
+              <option value="5">الصف الخامس</option>
+              <option value="6">الصف السادس</option>
+              <option value="7">الصف السابع</option>
+              <option value="8">الصف الثامن</option>
+              <option value="9">الصف التاسع</option>
+              <option value="10">الصف العاشر</option>
+              <option value="11">الصف الحادي عشر</option>
+              <option value="12">الصف الثاني عشر</option>
+            </select>
+            <select id="studentEditorSection" onchange="renderStudentEditor()">
+              <option value="">اختر الشعبة</option>
+            </select>
+            <input id="studentEditorSearch" type="search" placeholder="🔎 البحث بالاسم أو الهاتف" oninput="renderStudentEditor()">
+            <button type="button" onclick="saveStudentEditorChanges()" style="background:#16a34a;color:#fff;">💾 حفظ التعديلات</button>
+          </div>
+
+          <div id="studentEditorMessage"></div>
+          <div id="studentEditorTableWrap"></div>
         </div>
 
         <div id="adminStudentListsInline" style="display:none;background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px;">
@@ -493,13 +550,18 @@ async function loadCSVData(type) {
 
   // القوائم المحلية من PDF لها الأولوية.
   if (localStudentLists[key] && Array.isArray(localStudentLists[key].students)) {
-    state[type].students = localStudentLists[key].students.map((s, i) => ({
-      id: i + 1,
-      phone: s.phone || '',
-      name: s.name || '',
-      grade: grade,
-      section: section
-    }));
+    state[type].students = localStudentLists[key].students
+      .slice()
+      .sort((a,b) => Number(a.serial || 0) - Number(b.serial || 0))
+      .map((s, i) => ({
+        id: i + 1,
+        phone: s.phone || '',
+        name: s.name || '',
+        grade: grade,
+        section: section,
+        schoolId: s.schoolId || '',
+        serial: s.serial || ''
+      }));
 
     if (!state[type].students.length) {
       alert('القائمة موجودة ولكن لا توجد بيانات طلاب.');
@@ -1608,7 +1670,6 @@ async function sendSelectedAdminRecords() {
   }
 }
 
-async 
 async function selectAndSendAllPending() {
   const pending = getVisibleAdminRecords().filter(r => !r.sent);
 
@@ -1878,6 +1939,266 @@ function escapeJs(value) {
 }
 
 
+
+
+/* =========================================================
+   تعديل قوائم الطلاب — الاسم ورقم الهاتف
+   ========================================================= */
+
+let studentEditorDraft = [];
+
+function toggleStudentEditor() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  const panel = document.getElementById('studentEditorInline');
+  if (!panel) return;
+
+  const isHidden = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = isHidden ? 'block' : 'none';
+
+  if (isHidden) {
+    updateStudentEditorSections();
+    renderStudentEditor();
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+
+function updateStudentEditorSections() {
+  const grade = document.getElementById('studentEditorGrade').value;
+  const sectionSelect = document.getElementById('studentEditorSection');
+  if (!sectionSelect) return;
+
+  const current = sectionSelect.value;
+  sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
+
+  if (!grade) {
+    renderStudentEditor();
+    return;
+  }
+
+  const sections = getImportedSections(grade);
+  sections.forEach(section => {
+    const opt = document.createElement('option');
+    opt.value = section;
+    opt.textContent = 'الشعبة ' + section;
+    sectionSelect.appendChild(opt);
+  });
+
+  if (sections.includes(current)) sectionSelect.value = current;
+  renderStudentEditor();
+}
+
+function renderStudentEditor() {
+  const wrap = document.getElementById('studentEditorTableWrap');
+  const msg = document.getElementById('studentEditorMessage');
+  if (!wrap) return;
+
+  const grade = document.getElementById('studentEditorGrade')?.value || '';
+  const section = document.getElementById('studentEditorSection')?.value || '';
+  const q = (document.getElementById('studentEditorSearch')?.value || '').trim().toLowerCase();
+
+  if (!grade || !section) {
+    wrap.innerHTML = '<div style="padding:18px;text-align:center;background:#f8fafc;border-radius:10px;">اختر الصف والشعبة لعرض الطلاب.</div>';
+    if (msg) msg.innerHTML = '';
+    studentEditorDraft = [];
+    return;
+  }
+
+  const key = studentListKey(grade, section);
+  const list = localStudentLists[key];
+
+  if (!list || !Array.isArray(list.students)) {
+    wrap.innerHTML = '<div style="padding:18px;text-align:center;background:#fff7ed;border-radius:10px;color:#9a3412;">لا توجد قائمة PDF مستوردة لهذا الصف والشعبة.</div>';
+    if (msg) msg.innerHTML = '';
+    studentEditorDraft = [];
+    return;
+  }
+
+  const students = [...list.students].sort((a,b) => Number(a.serial || 0) - Number(b.serial || 0));
+  const filtered = students.filter(s => {
+    if (!q) return true;
+    return [s.name, s.phone, s.serial, s.schoolId].join(' ').toLowerCase().includes(q);
+  });
+
+  studentEditorDraft = students.map(s => ({
+    serial: String(s.serial || ''),
+    schoolId: String(s.schoolId || ''),
+    name: String(s.name || ''),
+    phone: String(s.phone || '')
+  }));
+
+  if (!filtered.length) {
+    wrap.innerHTML = '<div style="padding:18px;text-align:center;color:#64748b;">لا توجد نتائج مطابقة للبحث.</div>';
+    return;
+  }
+
+  const rows = filtered.map((s) => {
+    const serial = String(s.serial || '');
+    const idx = studentEditorDraft.findIndex(x => x.serial === serial && x.schoolId === String(s.schoolId || ''));
+    const safeKey = `${escapeJs(serial)}|${escapeJs(s.schoolId || '')}`;
+
+    return `
+      <tr>
+        <td style="text-align:center;font-weight:bold;">${escapeHtml(serial)}</td>
+        <td>${escapeHtml(s.schoolId || '—')}</td>
+        <td>
+          <input class="student-edit-input"
+                 value="${escapeHtml(s.name || '')}"
+                 data-editor-field="name"
+                 data-editor-key="${safeKey}"
+                 oninput="updateStudentEditorDraft(this)">
+        </td>
+        <td>
+          <input class="student-edit-input"
+                 value="${escapeHtml(s.phone || '')}"
+                 inputmode="numeric"
+                 maxlength="8"
+                 data-editor-field="phone"
+                 data-editor-key="${safeKey}"
+                 oninput="updateStudentEditorDraft(this)">
+        </td>
+      </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div style="margin-bottom:10px;color:#475569;">
+      عدد الطلاب: <strong>${students.length}</strong>
+      ${q ? ` — النتائج الظاهرة: <strong>${filtered.length}</strong>` : ''}
+    </div>
+    <div style="overflow:auto;">
+      <table class="student-editor-table">
+        <thead>
+          <tr>
+            <th>م</th>
+            <th>الرقم المدرسي</th>
+            <th>اسم الطالب</th>
+            <th>رقم الهاتف</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="text-align:center;margin-top:12px;">
+      <button type="button" onclick="saveStudentEditorChanges()" style="background:#16a34a;color:#fff;">💾 حفظ التعديلات</button>
+    </div>`;
+}
+
+function updateStudentEditorDraft(input) {
+  const keyParts = String(input.dataset.editorKey || '').split('|');
+  const serial = keyParts[0] || '';
+  const schoolId = keyParts.slice(1).join('|') || '';
+  const field = input.dataset.editorField;
+
+  const item = studentEditorDraft.find(x =>
+    String(x.serial) === serial && String(x.schoolId) === schoolId
+  );
+
+  if (!item) return;
+
+  item[field] = input.value;
+}
+
+function normalizeEditedPhone(phone) {
+  return normalizeDigits(phone).replace(/\D/g, '').slice(0, 8);
+}
+
+function saveStudentEditorChanges() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  const grade = document.getElementById('studentEditorGrade')?.value || '';
+  const section = document.getElementById('studentEditorSection')?.value || '';
+
+  if (!grade || !section) {
+    alert('اختر الصف والشعبة أولاً.');
+    return;
+  }
+
+  const key = studentListKey(grade, section);
+  const list = localStudentLists[key];
+
+  if (!list || !Array.isArray(list.students)) {
+    alert('لا توجد قائمة محفوظة لهذا الصف والشعبة.');
+    return;
+  }
+
+  // تحديث السجل الأصلي اعتمادًا على الرقم التسلسلي + الرقم المدرسي.
+  list.students = list.students.map(original => {
+    const serial = String(original.serial || '');
+    const schoolId = String(original.schoolId || '');
+
+    const edited = studentEditorDraft.find(x =>
+      String(x.serial) === serial && String(x.schoolId) === schoolId
+    );
+
+    if (!edited) return original;
+
+    const name = String(edited.name || '').trim();
+    const phone = normalizeEditedPhone(edited.phone);
+
+    if (!name) {
+      throw new Error(`اسم الطالب رقم ${serial} لا يمكن أن يكون فارغًا.`);
+    }
+
+    if (phone && !/^[79]\d{7}$/.test(phone)) {
+      throw new Error(`رقم الهاتف للطالب رقم ${serial} غير صحيح. يجب أن يكون 8 أرقام ويبدأ بـ 7 أو 9.`);
+    }
+
+    return {
+      ...original,
+      name,
+      phone
+    };
+  });
+
+  list.updatedAt = new Date().toLocaleString('ar-OM');
+  localStudentLists[key] = list;
+  saveLocalStudentLists();
+
+  // إذا كانت إحدى صفحات المعلم مفتوحة بالقائمة نفسها، حدّثها فورًا.
+  ['Abs','Viol','Morning'].forEach(type => {
+    const gradeEl = document.getElementById('gradeSelect' + type);
+    const sectionEl = document.getElementById('sectionSelect' + type);
+    if (gradeEl && sectionEl &&
+        normalizeValue(gradeEl.value) === normalizeValue(grade) &&
+        normalizeValue(sectionEl.value) === normalizeValue(section)) {
+      state[type].students = list.students.map((s, i) => ({
+        id: i + 1,
+        phone: s.phone || '',
+        name: s.name || '',
+        grade,
+        section,
+        schoolId: s.schoolId || '',
+        serial: s.serial || ''
+      }));
+
+      if (type === 'Abs') renderAbsence();
+      else if (type === 'Viol') renderViolations();
+      else renderMorningLate();
+    }
+  });
+
+  const msg = document.getElementById('studentEditorMessage');
+  if (msg) {
+    msg.className = 'student-editor-msg';
+    msg.style.background = '#dcfce7';
+    msg.style.color = '#166534';
+    msg.textContent = '✅ تم حفظ تعديلات الأسماء وأرقام الهواتف بنجاح.';
+  }
+
+  renderStudentListsSummaryInline();
+  renderStudentListsSummary();
+  renderStudentEditor();
+
+  setTimeout(() => {
+    if (msg) msg.innerHTML = '';
+  }, 3500);
+}
 
 function toggleAdminStudentLists() {
   const panel = document.getElementById('adminStudentListsInline');
