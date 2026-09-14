@@ -81,6 +81,23 @@ button:hover {
   .present { background: #16a34a; color: #fff; }
   .absent { background: #dc2626; color: #fff; }
   .controls { margin-bottom: 20px; }
+
+/* ===== لوحة الإدارة ===== */
+.admin-dashboard{max-width:1100px;margin:20px auto}
+.admin-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:18px 0}
+.admin-card{border:0;border-radius:16px;padding:24px;color:#fff;font-size:20px;font-weight:bold;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,.15)}
+.admin-card.abs{background:#16a34a}.admin-card.viol{background:#dc2626}.admin-card.morning{background:#6a1b9a}
+.admin-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:15px 0}
+.admin-toolbar input,.admin-toolbar select{padding:10px;border:1px solid #ccc;border-radius:8px}
+.admin-list{background:#fff;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:15px;overflow:auto}
+.admin-list table{margin-top:0}
+.admin-actions button{margin:4px}
+.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}
+.student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
+#adminRecordsView{display:none !important}
+#adminRecordsView.admin-open{display:block !important}
+@media(max-width:700px){.admin-cards{grid-template-columns:1fr}.admin-dashboard{padding:10px}.admin-toolbar{display:block}.admin-toolbar>*{margin:5px;width:90%}}
+
 </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
@@ -95,7 +112,7 @@ button:hover {
     <button class="menu-btn absence-btn" onclick="showSection('absenceSection')">🟩 📋 تسجيل الغياب</button>
     <button class="menu-btn violation-btn" onclick="showSection('violationSection')">🟥 ⚠️ تسجيل المخالفات</button>
     <button class="menu-btn morning-btn" onclick="showSection('morningLateSection')">🔵 ⏰ التأخر الصباحي</button>
-    <button class="menu-btn" style="background:#475569;" onclick="openAdminLogin()">⚙️ إدارة قوائم الطلاب</button>
+    <button class="menu-btn" style="background:#475569;" onclick="openAdminDashboardLogin()">👨‍💼 الإدارة</button>
 
   </div>
 
@@ -113,7 +130,7 @@ button:hover {
         <input id="adminPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"
                style="font-size:24px;text-align:center;letter-spacing:10px;width:180px;">
         <br><br>
-        <button onclick="verifyAdminPin()" style="background:#0077b6;color:#fff;">دخول</button>
+        <button onclick="verifyStudentListPin()" style="background:#0077b6;color:#fff;">دخول</button>
       </div>
 
       <div id="adminPanel" style="display:none;">
@@ -132,6 +149,80 @@ button:hover {
 
           <div id="studentListsSummary" style="margin-top:20px;"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- لوحة الإدارة -->
+  <div id="adminDashboardSection" class="hidden">
+    <div class="top-bar">
+      <button class="back-btn" onclick="showSection('mainMenu')">🏠 رجوع</button>
+      <h2><span class="icon">👨‍💼</span>لوحة الإدارة</h2>
+    </div>
+    <div class="section-content admin-dashboard">
+      <div id="adminDashboardLogin" style="max-width:420px;margin:30px auto;background:#fff;padding:25px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.12);">
+        <div style="font-size:44px;">🔐</div>
+        <h3>دخول الإدارة</h3>
+        <p>أدخل الرقم السري المكون من 4 أرقام</p>
+        <input id="dashboardPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"
+               style="font-size:24px;text-align:center;letter-spacing:10px;width:180px;">
+        <br><br>
+        <button onclick="verifyDashboardPin()" style="background:#0077b6;color:#fff;">دخول</button>
+      </div>
+
+      <div id="adminDashboardPanel" style="display:none;">
+        <div style="background:#ecfeff;border:1px solid #a5f3fc;padding:12px;border-radius:12px;text-align:center;margin-bottom:15px;">
+          📌 <strong>تنبيه:</strong> تسجيل المعلم يحفظ الحالة فقط. إرسال WhatsApp يتم من هذه اللوحة بواسطة الإدارة.
+        </div>
+        <div id="adminStudentListsInline" style="background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px;">
+          <h3 style="margin-top:0;text-align:center;">📚 قوائم الطلاب PDF</h3>
+          <p style="color:#555;line-height:1.8;text-align:center;">
+            القوائم التي يرفعها المدير هنا تستخدم مباشرة في صفحات الغياب والسلوكيات والتأخر.
+            عند رفع قائمة جديدة لنفس الصف والشعبة يتم استبدال القائمة السابقة.
+          </p>
+
+          <div style="text-align:center;">
+            <input id="pdfFilesInline" type="file" accept="application/pdf,.pdf" multiple
+                   style="padding:10px;width:90%;max-width:600px;">
+            <br><br>
+            <button onclick="importPDFListsInline()" style="background:#0077b6;color:#fff;">📥 استيراد قوائم PDF</button>
+            <button onclick="clearStudentLists()" style="background:#dc2626;color:#fff;">🗑️ حذف جميع القوائم</button>
+          </div>
+
+          <div id="pdfImportStatusInline" style="margin-top:15px;font-weight:bold;text-align:center;"></div>
+          <div id="studentListsSummaryInline" style="margin-top:20px;"></div>
+        </div>
+
+        <div class="admin-cards">
+          <button type="button" class="admin-card abs" onclick="openAdminRecords('Abs')">
+            🟩<br><span>الغياب</span><br><small>عرض سجلات الغياب</small>
+          </button>
+          <button type="button" class="admin-card viol" onclick="openAdminRecords('Viol')">
+            🟥<br><span>السلوكيات والمخالفات</span><br><small>عرض السجلات</small>
+          </button>
+          <button type="button" class="admin-card morning" onclick="openAdminRecords('Morning')">
+            🔵<br><span>التأخر الصباحي</span><br><small>عرض السجلات</small>
+          </button>
+        </div>
+
+        <div id="adminRecordsView" style="display:none;">
+          <h3 id="adminRecordsTitle"></h3>
+          <div class="admin-toolbar">
+            <input id="adminSearch" placeholder="🔎 البحث عن طالب" oninput="renderAdminRecords()">
+            <button onclick="selectAllAdminRecords(true)">☑️ تحديد الكل</button>
+            <button onclick="selectAllAdminRecords(false)">⬜ إلغاء التحديد</button>
+            <button onclick="sendSelectedAdminRecords()" style="background:#16a34a;color:#fff;">📱 إرسال المحدد</button>
+            <button onclick="selectAndSendAllPending()" style="background:#059669;color:#fff;">📱 إرسال جميع غير المرسلة</button>
+            <button onclick="deleteSelectedAdminRecords()" style="background:#dc2626;color:#fff;">🗑️ حذف المحدد</button>
+            <button onclick="exportSelectedStudentPDF()" style="background:#475569;color:#fff;">📄 تقرير الطالب PDF</button>
+            <button onclick="exportAdminListPDF()" style="background:#0077b6;color:#fff;">📄 طباعة / PDF القائمة</button>
+            <button onclick="loadAdminRecords()" style="background:#64748b;color:#fff;">🔄 تحديث</button>
+          </div>
+          <div id="adminRecordsViewList" class="admin-list"></div>
+        </div>
+
+        <div id="studentReportView" class="student-report" style="display:none;"></div>
       </div>
     </div>
   </div>
@@ -253,21 +344,25 @@ if (window.pdfjsLib) {
 }
 
 const SHEET_URLS = ['https://script.google.com/macros/s/AKfycbzlQe4iAbLDA53MFkP8LRVFjFO_K9yEkIT1ssh-BNje_VyogUuIaNTiK2YPdW6zP7Bh0Q/exec'];
+const ADMIN_PIN = '1982';
+const ADMIN_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwX06YdlSJP6Le-YfovLoZKuBEe8X6t9j6PBsTdda7oWYxbprz0PPtUE-gSnYCaKRGixA/exec';
+
 const EXPORT_WEBAPP_URLS = {
-  Abs: "https://script.google.com/macros/s/AKfycbwztdq4m2bo7b1gHYY1cPauOlyjZADJkATIiExR2OZg8GKlEMWFzgtw5wgR4sjdItuHlg/exec",
-  Viol: "https://script.google.com/macros/s/AKfycbwztdq4m2bo7b1gHYY1cPauOlyjZADJkATIiExR2OZg8GKlEMWFzgtw5wgR4sjdItuHlg/exec",
-  Morning: "https://script.google.com/macros/s/AKfycbwztdq4m2bo7b1gHYY1cPauOlyjZADJkATIiExR2OZg8GKlEMWFzgtw5wgR4sjdItuHlg/exec"
+  Abs: ADMIN_WEBAPP_URL,
+  Viol: ADMIN_WEBAPP_URL,
+  Morning: ADMIN_WEBAPP_URL
 };
 const state = { Abs: {students: [], attendance: {}}, Viol: {students: [], violations: {}}, Morning: {students: [], status: {}} };
 
 
 function showSection(id) {
-  document.querySelectorAll('#mainMenu, #absenceSection, #violationSection, #morningLateSection, #studentAdminSection')
+  document.querySelectorAll('#mainMenu, #absenceSection, #violationSection, #morningLateSection, #studentAdminSection, #adminDashboardSection')
     .forEach(div => div.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
 
   if (id === 'mainMenu') {
       adminUnlocked = false;
+      adminDashboardUnlocked = false;
       state.Abs.attendance = {};
       state.Morning.status = {};
       state.Viol.violations = {};
@@ -470,7 +565,7 @@ function openAdminLogin() {
   document.getElementById('adminPin').focus();
 }
 
-function verifyAdminPin() {
+function verifyStudentListPin() {
   const pin = document.getElementById('adminPin').value.trim();
 
   if (pin === '1982') {
@@ -486,11 +581,18 @@ function verifyAdminPin() {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadLocalStudentLists();
+  renderStudentListsSummaryInline();
 
   const pinInput = document.getElementById('adminPin');
   if (pinInput) {
     pinInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') verifyAdminPin();
+      if (e.key === 'Enter') verifyStudentListPin();
+    });
+  }
+  const dashboardPin = document.getElementById('dashboardPin');
+  if (dashboardPin) {
+    dashboardPin.addEventListener('keydown', e => {
+      if (e.key === 'Enter') verifyDashboardPin();
     });
   }
 });
@@ -917,7 +1019,7 @@ function exportData(type) {
   const teacher = document.getElementById('teacherName' + (type === 'Abs' ? 'Abs' : 'Viol')).value.trim() || 'المعلم';
   const grade = document.getElementById('gradeSelect' + type).value;
   const section = document.getElementById('sectionSelect' + type).value;
-  const today = new Date().toLocaleDateString('ar-EG');
+  const today = new Date().toLocaleDateString('ar-OM');
 
   if (type === 'Abs') {
     const absents = state.Abs.students.filter(s => state.Abs.attendance[s.id] === false);
@@ -941,53 +1043,106 @@ function exportData(type) {
   else {
     const viols = state.Viol.students.filter(s => state.Viol.violations[s.id] && state.Viol.violations[s.id] !== '');
     if (!viols.length) return alert('لم يتم اختيار أي مخالفات.');
-    const rows = viols.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, message: `ولي أمر الطالب ${s.name}، تم تسجيل مخالفة: (${state.Viol.violations[s.id]}) في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
+    const rows = viols.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, violation: state.Viol.violations[s.id], message: `ولي أمر الطالب ${s.name}، تم تسجيل مخالفة: (${state.Viol.violations[s.id]}) في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
     sendData(rows, type);
   }
+}
+
+function todayISO() {
+  const d = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Muscat',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(d);
+
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${day}`;
+}
+
+function teacherInputId(type) {
+  return type === 'Abs' ? 'teacherNameAbs' :
+         type === 'Viol' ? 'teacherNameViol' :
+         'teacherNameMorning';
 }
 
 function sendData(rows, type) {
   const loadingSpan = document.getElementById('loading' + type);
   const sendBtn = document.querySelector(`button[onclick="exportData('${type}')"]`);
+  const grade = document.getElementById('gradeSelect' + type).value.trim();
+  const section = document.getElementById('sectionSelect' + type).value.trim();
+  const teacher = document.getElementById(teacherInputId(type)).value.trim() || 'المعلم';
 
-  if (loadingSpan) {
-    loadingSpan.textContent = '⏳ جاري الإرسال...';
-    loadingSpan.style.display = 'inline';
+  if (!grade || !section) {
+    alert('يرجى اختيار الصف والشعبة.');
+    return;
   }
 
+  const records = rows.map(r => ({
+    type: type,
+    studentName: r.name,
+    studentId: `${type}-${grade}-${section}-${r.phone || r.serial}`,
+    phone: r.phone || '',
+    className: `${grade}/${section}`,
+    teacher: teacher,
+    violation: type === 'Viol' ? (r.violation || '') : '',
+    date: todayISO(),
+    message: r.message || ''
+  }));
+
+  if (loadingSpan) {
+    loadingSpan.textContent = '⏳ جاري حفظ البيانات...';
+    loadingSpan.style.display = 'inline';
+  }
   if (sendBtn) sendBtn.disabled = true;
-    rows.forEach(r => r.type = type);
-  fetch(EXPORT_WEBAPP_URLS[type], {
+
+  fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
-
-    // ❗ مهم جداً — منع الـ OPTIONS Preflight
-    headers: { 'Content-Type': 'text/plain' },
-
-   body: JSON.stringify(rows)
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'record',
+      pin: ADMIN_PIN,
+      records: records
+    })
   })
-
-  .then(res => res.text())
+  .then(res => res.json())
   .then(result => {
-    console.log("RESULT:", result);
+    if (!result.success) throw new Error(result.error || 'تعذر حفظ البيانات');
 
-    if (loadingSpan) loadingSpan.textContent = '✅ تم الإرسال بنجاح';
+    const added = Number(result.added || 0);
+    const skipped = Number(result.skipped || 0);
+
+    if (loadingSpan) {
+      loadingSpan.textContent = skipped
+        ? `✅ تم الحفظ (${added}) — مكرر: ${skipped}`
+        : `✅ تم الحفظ (${added})`;
+    }
+
+    alert(
+      skipped
+        ? `تم حفظ ${added} حالة. وتم تجاهل ${skipped} حالة مكررة.`
+        : `✅ تم حفظ ${added} حالة بنجاح.\n\n📱 لم يتم إرسال أي WhatsApp الآن.\nالإرسال يتم من لوحة الإدارة فقط.`
+    );
+
+    if (sendBtn) sendBtn.disabled = false;
+
     setTimeout(() => {
       if (loadingSpan) {
         loadingSpan.style.display = 'none';
         loadingSpan.textContent = '⏳ جاري الإرسال...';
       }
-    }, 1500);
+    }, 1800);
 
-    if (sendBtn) sendBtn.disabled = false;
     resetForm(type);
   })
   .catch(err => {
-    alert('❌ فشل الإرسال');
+    alert('❌ فشل حفظ البيانات: ' + err.message);
     console.error(err);
-
     if (loadingSpan) loadingSpan.style.display = 'none';
     if (sendBtn) sendBtn.disabled = false;
-    resetForm(type);
   });
 }
 
@@ -1033,52 +1188,682 @@ function noAbsentees() {
   const teacher = document.getElementById('teacherNameAbs').value.trim();
   const grade = document.getElementById('gradeSelectAbs').value.trim();
   const section = document.getElementById('sectionSelectAbs').value.trim();
-  const loadingSpan = document.getElementById('loadingAbs');
-  const sendBtn = document.querySelector("button[onclick='noAbsentees()']");
 
   if (!teacher || !grade || !section) {
     alert("يرجى إدخال اسم المعلم واختيار الصف والشعبة أولاً");
     return;
   }
 
-  // إظهار حالة الإرسال
-  if (loadingSpan) loadingSpan.style.display = 'inline';
-  if (sendBtn) sendBtn.disabled = true;
-
-  // البيانات المرسلة لجوجل شيت
-  const rows = [{
-    serial: 1,
-    type: "Abs",
-    phone: "",
-    name: "لا يوجد غياب",
-    message: `لا يوجد غياب في الصف ${grade} / ${section} - المعلم: ${teacher}`
-  }];
-
-  fetch(EXPORT_WEBAPP_URLS['Abs'], {
+  fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(rows)
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'record',
+      pin: ADMIN_PIN,
+      records: [{
+        type: 'Abs',
+        studentName: 'لا يوجد غياب',
+        studentId: `NOABS-${grade}-${section}-${todayISO()}`,
+        phone: '',
+        className: `${grade}/${section}`,
+        teacher: teacher,
+        violation: '',
+        date: todayISO(),
+        noAbsence: true,
+        message: `لا يوجد غياب في الصف ${grade}/${section} - المعلم: ${teacher}`
+      }]
+    })
   })
-  .then(() => {
-    if (loadingSpan) loadingSpan.textContent = '✅ تم الإرسال بنجاح';
-    setTimeout(() => {
-      if (loadingSpan) {
-        loadingSpan.style.display = 'none';
-        loadingSpan.textContent = '⏳ جاري الإرسال...';
-      }
-    }, 1500);
-
-    if (sendBtn) sendBtn.disabled = false;
-
-    resetForm('Abs'); // ← التصحيح الصحيح
+  .then(r => r.json())
+  .then(result => {
+    if (!result.success) throw new Error(result.error || 'فشل الحفظ');
+    alert('✅ تم تسجيل «لا يوجد غياب» وحفظه في النظام.');
+    resetForm('Abs');
   })
   .catch(err => {
-    alert('❌ فشل الإرسال');
     console.error(err);
-
-    if (loadingSpan) loadingSpan.style.display = 'none';
-    if (sendBtn) sendBtn.disabled = false;
+    alert('❌ فشل الحفظ: ' + err.message);
   });
+}
+
+
+
+/* =========================================================
+   لوحة الإدارة
+   ========================================================= */
+
+let adminRecords = [];
+let adminCurrentType = 'Abs';
+let adminSelectedIds = new Set();
+let adminDashboardUnlocked = false;
+
+function openAdminDashboardLogin() {
+  showSection('adminDashboardSection');
+  document.getElementById('adminDashboardLogin').style.display = 'block';
+  document.getElementById('adminDashboardPanel').style.display = 'none';
+  document.getElementById('adminRecordsView').style.display = 'none';
+  document.getElementById('studentReportView').style.display = 'none';
+  document.getElementById('dashboardPin').value = '';
+  setTimeout(() => document.getElementById('dashboardPin').focus(), 100);
+}
+
+async function verifyDashboardPin() {
+  const pin = document.getElementById('dashboardPin').value.trim();
+
+  if (pin !== ADMIN_PIN) {
+    document.getElementById('dashboardPin').value = '';
+    alert('❌ الرقم السري غير صحيح');
+    return;
+  }
+
+  adminDashboardUnlocked = true;
+  document.getElementById('adminDashboardLogin').style.display = 'none';
+  document.getElementById('adminDashboardPanel').style.display = 'block';
+  document.getElementById('adminRecordsView').classList.remove('admin-open');
+  document.getElementById('adminRecordsView').style.display = 'none';
+  document.getElementById('studentReportView').style.display = 'none';
+
+  await loadAdminRecords();
+  renderStudentListsSummaryInline();
+}
+
+async function loadAdminRecords() {
+  if (!adminDashboardUnlocked) return;
+
+  const view = document.getElementById('adminRecordsViewList');
+  view.innerHTML = '<div style="padding:25px;text-align:center;">⏳ جاري تحميل المعطيات...</div>';
+
+  try {
+    const url = `${ADMIN_WEBAPP_URL}?action=records&pin=${encodeURIComponent(ADMIN_PIN)}&_=${Date.now()}`;
+    const response = await fetch(url, {cache: 'no-store'});
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'تعذر تحميل السجلات');
+    }
+
+    adminRecords = Array.isArray(result.records) ? result.records : [];
+    adminSelectedIds = new Set();
+
+    renderAdminRecords();
+    updateAdminCardsCounts();
+
+  } catch (err) {
+    console.error(err);
+    view.innerHTML = `
+      <div style="padding:20px;color:#b91c1c;background:#fee2e2;border-radius:12px;">
+        ❌ تعذر تحميل البيانات.<br>${escapeHtml(err.message)}
+      </div>`;
+  }
+}
+
+function openAdminRecords(type) {
+  adminCurrentType = type;
+  document.getElementById('adminRecordsView').classList.add('admin-open');
+  document.getElementById('adminRecordsView').style.display = 'block';
+  document.getElementById('studentReportView').style.display = 'none';
+
+  const titles = {
+    Abs: '🟩 سجل الغياب',
+    Viol: '🟥 سجل السلوكيات والمخالفات',
+    Morning: '🔵 سجل التأخر الصباحي'
+  };
+
+  document.getElementById('adminRecordsTitle').textContent =
+    titles[type] || 'السجلات';
+
+  document.getElementById('adminSearch').value = '';
+  adminSelectedIds = new Set();
+  renderAdminRecords();
+}
+
+function updateAdminCardsCounts() {
+  const counts = {
+    Abs: adminRecords.filter(r => r.type === 'Abs').length,
+    Viol: adminRecords.filter(r => r.type === 'Viol').length,
+    Morning: adminRecords.filter(r => r.type === 'Morning').length
+  };
+
+  document.querySelector('.admin-card.abs').innerHTML =
+    `🟩<br>الغياب<br><small>${counts.Abs} حالة</small>`;
+  document.querySelector('.admin-card.viol').innerHTML =
+    `🟥<br>السلوكيات<br><small>${counts.Viol} حالة</small>`;
+  document.querySelector('.admin-card.morning').innerHTML =
+    `🔵<br>التأخر الصباحي<br><small>${counts.Morning} حالة</small>`;
+}
+
+function getVisibleAdminRecords() {
+  const q = (document.getElementById('adminSearch').value || '')
+    .trim()
+    .toLowerCase();
+
+  return adminRecords
+    .filter(r => r.type === adminCurrentType)
+    .filter(r => {
+      if (!q) return true;
+      const haystack = [
+        r.studentName,
+        r.studentId,
+        r.phone,
+        r.className,
+        r.teacher,
+        r.date,
+        r.violation
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    })
+    .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
+function renderAdminRecords() {
+  const box = document.getElementById('adminRecordsViewList');
+  const records = getVisibleAdminRecords();
+
+  if (!records.length) {
+    box.innerHTML = `
+      <div style="padding:25px;text-align:center;color:#64748b;">
+        لا توجد معطيات في هذا القسم.
+      </div>`;
+    return;
+  }
+
+  const rows = records.map((r, i) => {
+    const checked = adminSelectedIds.has(String(r.id)) ? 'checked' : '';
+    const sentText = r.sent
+      ? '<span class="status-sent">✅ تم الإرسال</span>'
+      : '<span class="status-pending">⏳ بانتظار الإرسال</span>';
+
+    const detail = r.type === 'Viol'
+      ? escapeHtml(r.violation || '—')
+      : r.type === 'Morning'
+        ? 'تأخر صباحي'
+        : (r.studentName === 'لا يوجد غياب' ? 'لا يوجد غياب' : 'غياب');
+
+    return `
+      <tr>
+        <td style="text-align:center;">
+          <input type="checkbox" ${checked}
+            onchange="toggleAdminRecord('${escapeJs(r.id)}', this.checked)">
+        </td>
+        <td>${i + 1}</td>
+        <td>
+          <button onclick="showStudentReport('${escapeJs(r.studentId)}')"
+            style="background:none;border:0;color:#075985;font-weight:bold;text-decoration:underline;">
+            ${escapeHtml(r.studentName || '—')}
+          </button>
+        </td>
+        <td>${escapeHtml(r.className || '—')}</td>
+        <td>${detail}</td>
+        <td>${escapeHtml(r.date || '—')}</td>
+        <td>${escapeHtml(r.teacher || '—')}</td>
+        <td>${sentText}</td>
+      </tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="margin-bottom:10px;color:#475569;">
+      عدد النتائج: <strong>${records.length}</strong>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:45px;">✓</th>
+          <th>#</th>
+          <th>الطالب</th>
+          <th>الصف/الشعبة</th>
+          <th>${adminCurrentType === 'Viol' ? 'المخالفة' : 'الحالة'}</th>
+          <th>التاريخ</th>
+          <th>المعلم</th>
+          <th>حالة WhatsApp</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function toggleAdminRecord(id, checked) {
+  id = String(id);
+  if (checked) adminSelectedIds.add(id);
+  else adminSelectedIds.delete(id);
+}
+
+function selectAllAdminRecords(select) {
+  getVisibleAdminRecords().forEach(r => {
+    if (select) adminSelectedIds.add(String(r.id));
+    else adminSelectedIds.delete(String(r.id));
+  });
+  renderAdminRecords();
+}
+
+async function sendSelectedAdminRecords() {
+  const ids = Array.from(adminSelectedIds);
+
+  if (!ids.length) {
+    alert('☑️ حدد حالة واحدة على الأقل للإرسال.');
+    return;
+  }
+
+  const selected = adminRecords.filter(r => ids.includes(String(r.id)));
+  const alreadySent = selected.filter(r => r.sent).length;
+  const pending = selected.filter(r => !r.sent).length;
+
+  if (!pending) {
+    alert('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.');
+    return;
+  }
+
+  const message =
+    `سيتم إرسال ${pending} رسالة WhatsApp.` +
+    (alreadySent ? `\nوسيتم تجاهل ${alreadySent} حالة أُرسلت سابقًا.` : '') +
+    '\n\nهل تريد المتابعة؟';
+
+  if (!confirm(message)) return;
+
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'send',
+        pin: ADMIN_PIN,
+        ids: ids
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'فشل الإرسال');
+    }
+
+    const sent = Number(result.sent || 0);
+    const failed = Number(result.failed || 0);
+
+    adminRecords = Array.isArray(result.records) ? result.records : adminRecords;
+    adminSelectedIds = new Set();
+
+    updateAdminCardsCounts();
+    renderAdminRecords();
+
+    alert(
+      `📱 نتيجة الإرسال:\n\n` +
+      `✅ تم الإرسال: ${sent}\n` +
+      `❌ فشل: ${failed}\n\n` +
+      `لن يتم إعادة إرسال الحالات التي تم إرسالها بنجاح.`
+    );
+
+  } catch (err) {
+    console.error(err);
+    alert('❌ فشل إرسال WhatsApp: ' + err.message);
+  }
+}
+
+async 
+async function selectAndSendAllPending() {
+  const pending = getVisibleAdminRecords().filter(r => !r.sent);
+
+  if (!pending.length) {
+    alert('لا توجد حالات غير مرسلة في هذا القسم.');
+    return;
+  }
+
+  if (!confirm(`سيتم إرسال ${pending.length} رسالة WhatsApp من الحالات غير المرسلة في هذا القسم.\n\nهل تريد المتابعة؟`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'send',
+        pin: ADMIN_PIN,
+        ids: pending.map(r => String(r.id))
+      })
+    });
+
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'فشل الإرسال');
+
+    adminRecords = Array.isArray(result.records) ? result.records : adminRecords;
+    adminSelectedIds = new Set();
+    updateAdminCardsCounts();
+    renderAdminRecords();
+
+    alert(`📱 تم الإرسال: ${result.sent || 0}\n❌ فشل: ${result.failed || 0}`);
+  } catch (err) {
+    console.error(err);
+    alert('❌ فشل إرسال WhatsApp: ' + err.message);
+  }
+}
+
+async function deleteSelectedAdminRecords() {
+  const ids = Array.from(adminSelectedIds);
+
+  if (!ids.length) {
+    alert('☑️ حدد حالة واحدة على الأقل للحذف.');
+    return;
+  }
+
+  if (!confirm(`هل تريد حذف ${ids.length} سجل؟\n\nسيتم حذفها من قاعدة البيانات.`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'delete',
+        pin: ADMIN_PIN,
+        ids: ids
+      })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'فشل الحذف');
+    }
+
+    adminRecords = Array.isArray(result.records) ? result.records : [];
+    adminSelectedIds = new Set();
+
+    updateAdminCardsCounts();
+    renderAdminRecords();
+
+    document.getElementById('studentReportView').style.display = 'none';
+
+    alert(`🗑️ تم حذف ${result.deleted || ids.length} سجل.`);
+
+  } catch (err) {
+    console.error(err);
+    alert('❌ فشل الحذف: ' + err.message);
+  }
+}
+
+function showStudentReport(studentId) {
+  const id = String(studentId);
+  const records = adminRecords
+    .filter(r => String(r.studentId) === id)
+    .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+  if (!records.length) {
+    alert('لا توجد سجلات لهذا الطالب.');
+    return;
+  }
+
+  const student = records[0];
+  const absence = records.filter(r => r.type === 'Abs' && r.studentName !== 'لا يوجد غياب');
+  const late = records.filter(r => r.type === 'Morning');
+  const viol = records.filter(r => r.type === 'Viol');
+
+  const report = document.getElementById('studentReportView');
+  report.style.display = 'block';
+
+  report.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+      <h3 style="margin:0;">📄 تقرير الطالب</h3>
+      <button onclick="printStudentReport()" style="background:#0077b6;color:#fff;">🖨️ طباعة / PDF</button>
+    </div>
+
+    <div id="studentReportPrintable" style="margin-top:15px;">
+      <div style="background:#f8fafc;padding:15px;border-radius:12px;">
+        <h2 style="margin-top:0;">${escapeHtml(student.studentName)}</h2>
+        <p><strong>الصف/الشعبة:</strong> ${escapeHtml(student.className || '—')}</p>
+        <p><strong>رقم الطالب:</strong> ${escapeHtml(student.studentId || '—')}</p>
+        <p><strong>رقم ولي الأمر:</strong> ${escapeHtml(student.phone || '—')}</p>
+      </div>
+
+      <div class="admin-cards" style="grid-template-columns:repeat(3,1fr);">
+        <div class="admin-card abs" style="cursor:default;">🟩<br>الغياب<br><small>${absence.length} يوم</small></div>
+        <div class="admin-card viol" style="cursor:default;">🟥<br>السلوكيات<br><small>${viol.length} حالة</small></div>
+        <div class="admin-card morning" style="cursor:default;">🔵<br>التأخر<br><small>${late.length} مرة</small></div>
+      </div>
+
+      <h4>📅 تفاصيل السجل</h4>
+      <table>
+        <thead>
+          <tr><th>النوع</th><th>التاريخ</th><th>التفاصيل</th><th>المعلم</th><th>WhatsApp</th></tr>
+        </thead>
+        <tbody>
+          ${records.map(r => `
+            <tr>
+              <td>${escapeHtml(r.typeName || typeLabel(r.type))}</td>
+              <td>${escapeHtml(r.date || '—')}</td>
+              <td>${r.type === 'Viol'
+                    ? escapeHtml(r.violation || '—')
+                    : r.type === 'Morning'
+                      ? 'تأخر صباحي'
+                      : 'غياب'}</td>
+              <td>${escapeHtml(r.teacher || '—')}</td>
+              <td>${r.sent ? '✅ تم الإرسال' : '⏳ لم يرسل'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function typeLabel(type) {
+  return type === 'Abs' ? 'غياب' :
+         type === 'Viol' ? 'سلوكيات' :
+         'تأخر صباحي';
+}
+
+function printStudentReport() {
+  const printable = document.getElementById('studentReportPrintable');
+  if (!printable) return;
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('يرجى السماح بالنوافذ المنبثقة لطباعة التقرير.');
+    return;
+  }
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="utf-8">
+      <title>تقرير الطالب</title>
+      <style>
+        body{font-family:Arial,Tahoma,sans-serif;padding:25px;color:#111}
+        h2,h3,h4{margin-bottom:10px}
+        table{width:100%;border-collapse:collapse;margin-top:15px}
+        th,td{border:1px solid #aaa;padding:8px;text-align:right}
+        th{background:#eee}
+        @media print{button{display:none}}
+      </style>
+    </head>
+    <body>
+      <h2>مدرسة معولة بن شمس</h2>
+      ${printable.innerHTML}
+    </body>
+    </html>
+  `);
+
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function exportSelectedStudentPDF() {
+  const ids = Array.from(adminSelectedIds);
+
+  if (ids.length !== 1) {
+    alert('حدد سجلًا واحدًا فقط للطالب ثم اضغط «تقرير الطالب».\nأو اضغط على اسم الطالب مباشرة.');
+    return;
+  }
+
+  const record = adminRecords.find(r => String(r.id) === String(ids[0]));
+  if (record) showStudentReport(record.studentId);
+}
+
+function exportAdminListPDF() {
+  const records = getVisibleAdminRecords();
+
+  if (!records.length) {
+    alert('لا توجد بيانات لتصديرها.');
+    return;
+  }
+
+  const title = document.getElementById('adminRecordsTitle').textContent || 'سجل الطلاب';
+
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('يرجى السماح بالنوافذ المنبثقة لتصدير PDF.');
+    return;
+  }
+
+  const rows = records.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escapeHtml(r.studentName || '—')}</td>
+      <td>${escapeHtml(r.className || '—')}</td>
+      <td>${r.type === 'Viol' ? escapeHtml(r.violation || '—') : (r.type === 'Morning' ? 'تأخر صباحي' : 'غياب')}</td>
+      <td>${escapeHtml(r.date || '—')}</td>
+      <td>${escapeHtml(r.teacher || '—')}</td>
+      <td>${r.sent ? 'تم الإرسال' : 'لم يرسل'}</td>
+    </tr>`).join('');
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html dir="rtl" lang="ar">
+    <head>
+      <meta charset="utf-8">
+      <title>${escapeHtml(title)}</title>
+      <style>
+        body{font-family:Arial,Tahoma,sans-serif;padding:20px}
+        h2{text-align:center}
+        table{width:100%;border-collapse:collapse;margin-top:20px}
+        th,td{border:1px solid #999;padding:7px;text-align:right}
+        th{background:#eee}
+      </style>
+    </head>
+    <body>
+      <h2>مدرسة معولة بن شمس (5-12)</h2>
+      <h3>${escapeHtml(title)}</h3>
+      <p>تاريخ التقرير: ${new Date().toLocaleDateString('ar-OM')}</p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>الطالب</th><th>الصف/الشعبة</th><th>التفاصيل</th><th>التاريخ</th><th>المعلم</th><th>WhatsApp</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </body>
+    </html>
+  `);
+
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
+function escapeJs(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+
+
+async function importPDFListsInline() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  const input = document.getElementById('pdfFilesInline');
+  const status = document.getElementById('pdfImportStatusInline');
+  const files = Array.from(input.files || []);
+
+  if (!files.length) {
+    alert('اختر ملف PDF واحدًا على الأقل.');
+    return;
+  }
+
+  status.textContent = '⏳ جاري قراءة ملفات PDF...';
+
+  let ok = 0;
+  const errors = [];
+
+  for (const file of files) {
+    try {
+      const result = await extractStudentsFromPDF(file);
+      const key = studentListKey(result.grade, result.section);
+      localStudentLists[key] = result;
+      ok++;
+    } catch (err) {
+      console.error(file.name, err);
+      errors.push(`${file.name}: ${err.message}`);
+    }
+  }
+
+  saveLocalStudentLists();
+  renderStudentListsSummaryInline();
+  renderStudentListsSummary();
+  input.value = '';
+
+  status.innerHTML =
+    `✅ تم استيراد <strong>${ok}</strong> قائمة بنجاح.` +
+    (errors.length ? `<br><span style="color:#dc2626;">❌ ${errors.join('<br>')}</span>` : '');
+}
+
+function renderStudentListsSummaryInline() {
+  const box = document.getElementById('studentListsSummaryInline');
+  if (!box) return;
+
+  const keys = Object.keys(localStudentLists).sort((a,b) => {
+    const [ga,sa] = a.split('_').map(Number);
+    const [gb,sb] = b.split('_').map(Number);
+    return ga-gb || sa-sb;
+  });
+
+  if (!keys.length) {
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;text-align:center;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
+    return;
+  }
+
+  box.innerHTML = `
+    <h4 style="text-align:center;">📚 القوائم الحالية (${keys.length})</h4>
+    <div style="overflow:auto;">
+      <table style="margin-top:10px;">
+        <thead>
+          <tr><th>الصف</th><th>الشعبة</th><th>عدد الطلاب</th><th>الملف</th><th>الإجراء</th></tr>
+        </thead>
+        <tbody>
+          ${keys.map(key => {
+            const item = localStudentLists[key];
+            return `<tr>
+              <td>${escapeHtml(item.grade || '')}</td>
+              <td>${escapeHtml(item.section || '')}</td>
+              <td>${item.students.length}</td>
+              <td>${escapeHtml(item.fileName || '')}</td>
+              <td><button onclick="deleteStudentListInline('${escapeJs(key)}')" style="background:#dc2626;color:#fff;">حذف</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function deleteStudentListInline(key) {
+  if (!confirm('هل تريد حذف هذه القائمة؟')) return;
+  delete localStudentLists[key];
+  saveLocalStudentLists();
+  renderStudentListsSummaryInline();
+  renderStudentListsSummary();
+}
+
+function openAdminStudentLists() {
+  if (!adminDashboardUnlocked) {
+    openAdminDashboardLogin();
+    return;
+  }
+  showSection('adminDashboardSection');
+  document.getElementById('adminDashboardLogin').style.display = 'none';
+  document.getElementById('adminDashboardPanel').style.display = 'block';
+  const panel = document.getElementById('adminStudentListsInline');
+  if (panel) panel.scrollIntoView({behavior:'smooth', block:'start'});
+  renderStudentListsSummaryInline();
 }
 
 
