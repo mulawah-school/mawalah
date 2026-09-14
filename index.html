@@ -434,12 +434,12 @@ function studentListKey(grade, section) {
 }
 
 function saveLocalStudentLists() {
-  localStorage.setItem('mawalah_student_lists_v2', JSON.stringify(localStudentLists));
+  localStorage.setItem('mawalah_student_lists_pdf_exact_v2', JSON.stringify(localStudentLists));
 }
 
 function loadLocalStudentLists() {
   try {
-    const saved = localStorage.getItem('mawalah_student_lists_v2');
+    const saved = localStorage.getItem('mawalah_student_lists_pdf_exact_v2');
     localStudentLists = saved ? JSON.parse(saved) : {};
   } catch (e) {
     console.error('تعذر قراءة القوائم المحفوظة', e);
@@ -493,13 +493,18 @@ async function loadCSVData(type) {
 
   // القوائم المحلية من PDF لها الأولوية.
   if (localStudentLists[key] && Array.isArray(localStudentLists[key].students)) {
-    state[type].students = localStudentLists[key].students.map((s, i) => ({
-      id: i + 1,
-      phone: s.phone || '',
-      name: s.name || '',
-      grade: grade,
-      section: section
-    }));
+    state[type].students = localStudentLists[key].students
+      .slice()
+      .sort((a,b) => Number(a.serial || 0) - Number(b.serial || 0))
+      .map((s, i) => ({
+        id: i + 1,
+        phone: s.phone || '',
+        name: s.name || '',
+        grade: grade,
+        section: section,
+        serial: s.serial || i + 1,
+        schoolId: s.schoolId || ''
+      }));
 
     if (!state[type].students.length) {
       alert('القائمة موجودة ولكن لا توجد بيانات طلاب.');
@@ -659,90 +664,117 @@ async function extractStudentsFromPDF(file) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
 
-    // ترتيب عناصر PDF من أعلى الصفحة إلى أسفلها، ثم تجميع عناصر كل صف.
-    const rawItems = content.items
-      .map(item => ({
-        x: item.transform[4],
-        y: item.transform[5],
-        str: String(item.str || '').trim()
-      }))
-      .filter(item => item.str);
+    const items = content.items.map((item, index) => ({
+      x: Number(item.transform[4]) || 0,
+      y: Number(item.transform[5]) || 0,
+      str: String(item.str || '').trim(),
+      index
+    })).filter(x => x.str);
 
-    // PDF.js يستخدم إحداثيات Y من أسفل الصفحة إلى أعلاها،
-    // لذلك يجب ترتيب الصفوف تنازليًا حتى تظهر الأسماء بنفس ترتيب الكشف (1، 2، 3 ...).
-    rawItems.sort((a, b) => b.y - a.y || a.x - b.x);
+    // نجمع الكلمات حسب السطر باستخدام الإحداثيات، ثم نحافظ على
+    // الإحداثيات الأصلية لكل كلمة حتى نستطيع تحديد عمود الاسم بدقة.
+    items.sort((a,b) => b.y - a.y || a.x - b.x);
 
     const groups = [];
-    const LINE_TOLERANCE = 7;
+    const TOL = 6;
 
-    rawItems.forEach(item => {
+    for (const item of items) {
       let group = groups[groups.length - 1];
-
-      if (!group || Math.abs(item.y - group.y) > LINE_TOLERANCE) {
-        group = { y: item.y, ys: [item.y], items: [] };
+      if (!group || Math.abs(item.y - group.y) > TOL) {
+        group = { y:item.y, items:[] };
         groups.push(group);
-      } else {
-        group.ys.push(item.y);
-        group.y = group.ys.reduce((a,b) => a + b, 0) / group.ys.length;
       }
-
       group.items.push(item);
-    });
+    }
 
-    const lines = groups.map(group =>
-      group.items
-        .sort((a,b) => a.x - b.x)
-        .map(item => item.str)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    );
+    const lines = groups.map(g => ({
+      y: g.y,
+      items: g.items.sort((a,b)=>a.x-b.x)
+    }));
 
-    const pageText = lines.join('\n');
+    const pageText = lines.map(g =>
+      g.items.map(x=>x.str).join(' ').replace(/\s+/g,' ').trim()
+    ).join('\n');
 
     if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
 
     if (!detectedSection) {
-      // التقرير المعروض يكتبها بهذا الشكل تقريبًا:
-      // 2027/2026 : السنة الدراسية   1 /   الخامس : الصف
-      let m = normalizeDigits(pageText).match(
-        /(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/
-      );
-      if (!m) {
-        m = normalizeDigits(pageText).match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
-      }
-      if (!m) {
-        m = normalizeDigits(pageText).match(/(\d{1,2})\s*\/\s*20\d{2}/);
-      }
+      const t = normalizeDigits(pageText);
+      let m = t.match(/(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/);
+      if (!m) m = t.match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
+      if (!m) m = t.match(/(\d{1,2})\s*\/\s*20\d{2}/);
       if (m) detectedSection = m[1];
     }
 
-    // في هذا النوع من القوائم يكون ترتيب الصف:
-    // الهاتف | المنطقة | حالة القيد | الجنسية | الرقم المدرسي | الاسم | م
     for (const line of lines) {
-      const clean = normalizeDigits(line).replace(/\s+/g, ' ').trim();
+      const clean = normalizeDigits(
+        line.items.map(x=>x.str).join(' ')
+      ).replace(/\s+/g,' ').trim();
 
-      // كل طالب يبدأ برقم هاتف عماني من 8 أرقام.
-      if (!/^\d{8}\b/.test(clean)) continue;
+      // صف الطالب يبدأ برقم الهاتف ثم الرقم التسلسلي.
+      const rowStart = clean.match(/^(\d{8})\s+(\d{1,3})\b/);
+      if (!rowStart) continue;
 
-      const phoneMatch = clean.match(/^(\d{8})\b/);
+      const phone = rowStart[1];
+      const serial = Number(rowStart[2]);
+
+      // الرقم المدرسي 12 خانة.
       const schoolIdMatch = clean.match(/\b(\d{12})\b/);
-      const serialMatch = clean.match(/\s(\d{1,3})\s*$/);
-
-      if (!phoneMatch || !schoolIdMatch || !serialMatch) continue;
+      if (!schoolIdMatch) continue;
 
       const schoolId = schoolIdMatch[1];
-      const serial = serialMatch[1];
-      const schoolIdIndex = clean.indexOf(schoolId);
-      const serialIndex = clean.lastIndexOf(serial);
 
-      if (schoolIdIndex < 0 || serialIndex <= schoolIdIndex + schoolId.length) continue;
+      /*
+       * استخراج الاسم بالاعتماد على النص الأصلي للكلمات وليس على
+       * قص سلسلة نصية قد يؤدي إلى إسقاط أجزاء من الاسم.
+       *
+       * نبحث عن مواضع:
+       * الهاتف -> التسلسل -> الرقم المدرسي -> نهاية الاسم.
+       * وفي القوائم التي يغيّر فيها PDF.js ترتيب الأعمدة، نستخدم
+       * موضع x للرقم المدرسي والكلمات المحيطة به.
+       */
+      const serialItemIndex = line.items.findIndex(x => /^\d{1,3}$/.test(normalizeDigits(x.str)) && Number(normalizeDigits(x.str)) === serial);
+      const phoneItemIndex = line.items.findIndex(x => normalizeDigits(x.str) === phone);
+      const schoolItemIndex = line.items.findIndex(x => normalizeDigits(x.str) === schoolId);
 
-      let name = clean
-        .slice(schoolIdIndex + schoolId.length, serialIndex)
+      let nameItems = [];
+
+      // الحالة الأساسية: الاسم يقع بصريًا بين التسلسل والرقم المدرسي.
+      if (serialItemIndex >= 0 && schoolItemIndex >= 0) {
+        const a = Math.min(serialItemIndex, schoolItemIndex);
+        const b = Math.max(serialItemIndex, schoolItemIndex);
+        nameItems = line.items.slice(a + 1, b);
+      }
+
+      let name = nameItems
+        .map(x => x.str)
+        .join(' ')
+        .replace(/\s+/g,' ')
         .trim();
 
-      // إزالة أي نصوص غير متوقعة من بداية الاسم إذا ظهرت في استخراج PDF.
+      /*
+       * إذا كان PDF.js قد وضع الرقم المدرسي قبل الاسم، نبحث عن الاسم
+       * بعد الرقم المدرسي حتى أول أعمدة الجنسية/الحالة.
+       */
+      if (!name || name.length < 3) {
+        const afterSchool = schoolItemIndex >= 0
+          ? line.items.slice(schoolItemIndex + 1)
+          : [];
+
+        const stopWords = /^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري|منقول|مستمر|منتظم|مسلمات|افي)$/;
+
+        const collected = [];
+        for (const item of afterSchool) {
+          const word = item.str.trim();
+          if (!word) continue;
+          if (stopWords.test(word)) break;
+          if (/^\d{1,3}$/.test(normalizeDigits(word))) break;
+          collected.push(word);
+        }
+        name = collected.join(' ').replace(/\s+/g,' ').trim();
+      }
+
+      // إزالة الأعمدة غير الخاصة بالاسم فقط، دون تعديل حروف الاسم.
       name = name
         .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
         .trim();
@@ -750,7 +782,7 @@ async function extractStudentsFromPDF(file) {
       if (!name || name.length < 3) continue;
 
       students.push({
-        phone: phoneMatch[1],
+        phone,
         name,
         schoolId,
         serial
@@ -758,32 +790,20 @@ async function extractStudentsFromPDF(file) {
     }
   }
 
-  // إزالة التكرار بين صفحات الملف.
-  const unique = [];
-  const seen = new Set();
-
-  students.forEach(student => {
-    const key = student.phone + '|' + student.name;
-    if (!seen.has(key)) {
-      seen.add(key);
-      unique.push(student);
-    }
-  });
-
-  // الحفاظ على ترتيب الكشف الأصلي حسب الرقم التسلسلي.
-  unique.sort((a, b) => Number(a.serial) - Number(b.serial));
-
-  if (!detectedGrade) {
-    throw new Error('لم أستطع تحديد الصف من ملف PDF.');
+  // إزالة التكرار مع الاحتفاظ بالنسخة الأولى.
+  const bySerial = new Map();
+  for (const s of students) {
+    const key = `${s.serial}|${s.phone}|${s.schoolId}`;
+    if (!bySerial.has(key)) bySerial.set(key, s);
   }
 
-  if (!detectedSection) {
-    throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
-  }
+  const unique = [...bySerial.values()].sort(
+    (a,b) => Number(a.serial) - Number(b.serial)
+  );
 
-  if (!unique.length) {
-    throw new Error('تم فتح ملف PDF لكن لم أستطع استخراج أسماء الطلاب وأرقام الهواتف.');
-  }
+  if (!detectedGrade) throw new Error('لم أستطع تحديد الصف من ملف PDF.');
+  if (!detectedSection) throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
+  if (!unique.length) throw new Error('تم فتح PDF لكن لم أستطع استخراج الطلاب.');
 
   return {
     grade: detectedGrade,
@@ -1608,7 +1628,6 @@ async function sendSelectedAdminRecords() {
   }
 }
 
-async 
 async function selectAndSendAllPending() {
   const pending = getVisibleAdminRecords().filter(r => !r.sent);
 
