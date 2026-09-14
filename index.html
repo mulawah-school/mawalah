@@ -99,6 +99,12 @@ button:hover {
 @media(max-width:700px){.admin-cards{grid-template-columns:1fr}.admin-dashboard{padding:10px}.admin-toolbar{display:block}.admin-toolbar>*{margin:5px;width:90%}}
 
 </style>
+<style>
+.teacher-send-fast {
+  transition: opacity .15s ease, transform .15s ease;
+}
+</style>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
@@ -220,6 +226,9 @@ button:hover {
         <div id="adminRecordsView" style="display:none;">
           <h3 id="adminRecordsTitle"></h3>
           <div class="admin-toolbar">
+            <div id="adminSendStatus" style="display:none;width:100%;background:#ecfeff;color:#075985;padding:10px 14px;border-radius:10px;text-align:center;font-weight:bold;">
+              ⏳ جاري إرسال الرسائل إلى WhatsApp...
+            </div>
             <input id="adminSearch" placeholder="🔎 البحث عن طالب" oninput="renderAdminRecords()">
             <button onclick="selectAllAdminRecords(true)">☑️ تحديد الكل</button>
             <button onclick="selectAllAdminRecords(false)">⬜ إلغاء التحديد</button>
@@ -1088,7 +1097,12 @@ function sendData(rows, type) {
   const teacher = document.getElementById(teacherInputId(type)).value.trim() || 'المعلم';
 
   if (!grade || !section) {
-    alert('يرجى اختيار الصف والشعبة.');
+    showTeacherToast('⚠️ يرجى اختيار الصف والشعبة.', true);
+    return;
+  }
+
+  if (!rows || !rows.length) {
+    showTeacherToast('⚠️ لا توجد حالات لإرسالها.', true);
     return;
   }
 
@@ -1104,11 +1118,19 @@ function sendData(rows, type) {
     message: r.message || ''
   }));
 
+  // استجابة فورية للمعلم بدون انتظار نافذة alert.
   if (loadingSpan) {
-    loadingSpan.textContent = '⏳ جاري حفظ البيانات...';
+    loadingSpan.textContent = '⏳ جاري إرسال البيانات للإدارة...';
     loadingSpan.style.display = 'inline';
   }
-  if (sendBtn) sendBtn.disabled = true;
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.dataset.originalText = sendBtn.textContent;
+    sendBtn.textContent = '⏳ جاري الإرسال...';
+    sendBtn.style.opacity = '0.65';
+  }
+
+  showTeacherToast('⏳ جاري إرسال البيانات للإدارة...');
 
   fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
@@ -1117,7 +1139,10 @@ function sendData(rows, type) {
       action: 'record',
       pin: ADMIN_PIN,
       records: records
-    })
+    }),
+    cache: 'no-store',
+    redirect: 'follow',
+    keepalive: true
   })
   .then(res => res.json())
   .then(result => {
@@ -1128,33 +1153,81 @@ function sendData(rows, type) {
 
     if (loadingSpan) {
       loadingSpan.textContent = skipped
-        ? `✅ تم الحفظ (${added}) — مكرر: ${skipped}`
-        : `✅ تم الحفظ (${added})`;
+        ? `✅ تم إرسال ${added} حالة للإدارة — مكرر: ${skipped}`
+        : `✅ تم إرسال ${added} حالة للإدارة`;
     }
 
-    alert(
+    showTeacherToast(
       skipped
-        ? `تم حفظ ${added} حالة. وتم تجاهل ${skipped} حالة مكررة.`
-        : `✅ تم حفظ ${added} حالة بنجاح.\n\n📱 لم يتم إرسال أي WhatsApp الآن.\nالإرسال يتم من لوحة الإدارة فقط.`
+        ? `✅ تم إرسال ${added} حالة للإدارة — تم تجاهل ${skipped} حالة مكررة.`
+        : `✅ تم إرسال ${added} حالة للإدارة بنجاح.`
     );
 
-    if (sendBtn) sendBtn.disabled = false;
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = sendBtn.dataset.originalText || 'إرسال';
+      sendBtn.style.opacity = '1';
+    }
 
     setTimeout(() => {
       if (loadingSpan) {
         loadingSpan.style.display = 'none';
-        loadingSpan.textContent = '⏳ جاري الإرسال...';
       }
-    }, 1800);
+    }, 2500);
 
     resetForm(type);
   })
   .catch(err => {
-    alert('❌ فشل حفظ البيانات: ' + err.message);
     console.error(err);
-    if (loadingSpan) loadingSpan.style.display = 'none';
-    if (sendBtn) sendBtn.disabled = false;
+
+    if (loadingSpan) {
+      loadingSpan.textContent = '❌ تعذر إرسال البيانات للإدارة';
+    }
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = sendBtn.dataset.originalText || 'إرسال';
+      sendBtn.style.opacity = '1';
+    }
+
+    showTeacherToast('❌ فشل إرسال البيانات للإدارة: ' + err.message, true);
   });
+}
+
+function showTeacherToast(message, isError = false) {
+  let toast = document.getElementById('teacherSendToast');
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'teacherSendToast';
+    toast.style.cssText = `
+      position:fixed;
+      top:20px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:99999;
+      min-width:280px;
+      max-width:90vw;
+      padding:14px 20px;
+      border-radius:12px;
+      color:#fff;
+      font-weight:bold;
+      text-align:center;
+      box-shadow:0 6px 20px rgba(0,0,0,.18);
+      font-size:17px;
+      transition:opacity .2s ease;
+    `;
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = isError ? '#dc2626' : '#0077b6';
+  toast.style.opacity = '1';
+
+  clearTimeout(window.__teacherToastTimer);
+  window.__teacherToastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+  }, isError ? 5000 : 2500);
 }
 
 function renderMorningLate() {
@@ -1446,6 +1519,23 @@ function selectAllAdminRecords(select) {
   renderAdminRecords();
 }
 
+function setAdminSendingUI(isSending, message) {
+  const status = document.getElementById('adminSendStatus');
+  if (status) {
+    status.style.display = isSending ? 'block' : 'none';
+    if (message) status.textContent = message;
+  }
+
+  document.querySelectorAll('#adminRecordsView .admin-toolbar button').forEach(btn => {
+    const text = btn.textContent || '';
+    const isSend = text.includes('إرسال');
+    if (isSend) {
+      btn.disabled = isSending;
+      btn.style.opacity = isSending ? '0.6' : '1';
+    }
+  });
+}
+
 async function sendSelectedAdminRecords() {
   const ids = Array.from(adminSelectedIds);
 
@@ -1469,6 +1559,8 @@ async function sendSelectedAdminRecords() {
     '\n\nهل تريد المتابعة؟';
 
   if (!confirm(message)) return;
+
+  setAdminSendingUI(true, `⏳ جاري إرسال ${pending} رسالة إلى WhatsApp...`);
 
   try {
     const response = await fetch(ADMIN_WEBAPP_URL, {
@@ -1496,6 +1588,8 @@ async function sendSelectedAdminRecords() {
     updateAdminCardsCounts();
     renderAdminRecords();
 
+    setAdminSendingUI(false);
+
     alert(
       `📱 نتيجة الإرسال:\n\n` +
       `✅ تم الإرسال: ${sent}\n` +
@@ -1522,6 +1616,8 @@ async function selectAndSendAllPending() {
     return;
   }
 
+  setAdminSendingUI(true, `⏳ جاري إرسال ${pending.length} رسالة إلى WhatsApp...`);
+
   try {
     const response = await fetch(ADMIN_WEBAPP_URL, {
       method: 'POST',
@@ -1541,9 +1637,11 @@ async function selectAndSendAllPending() {
     updateAdminCardsCounts();
     renderAdminRecords();
 
+    setAdminSendingUI(false);
     alert(`📱 تم الإرسال: ${result.sent || 0}\n❌ فشل: ${result.failed || 0}`);
   } catch (err) {
     console.error(err);
+    setAdminSendingUI(false);
     alert('❌ فشل إرسال WhatsApp: ' + err.message);
   }
 }
