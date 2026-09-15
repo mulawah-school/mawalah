@@ -3,10 +3,10 @@
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="icon" href="logo_no_bg.png" type="image/png">
+  <link rel="icon" href="" type="image/png">
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>منصة متابعة الطلبة بمدرسة معولة بن شمس</title>
+<title>منصة متابعة الطلبة بمدرسة <span data-school-name>اسم المدرسة</span></title>
 <style>
 @media (max-width: 600px) {
   button {
@@ -133,8 +133,8 @@ button:hover {
   <!-- الصفحة الرئيسية -->
   <div id="mainMenu" class="menu-container">
     <div style="text-align: center; margin-top: 20px;" class="fade-in">
-  <img src="logo_no_bg.png" alt="شعار المدرسة" style="width: 120px; height: auto; margin-bottom: 10px;">
-  <h2 style="font-size: 24px; font-weight: bold;">منصة متابعة الطلبة بمدرسة معولة بن شمس</h2>
+  <img src="" alt="شعار المدرسة" style="width: 120px; height: auto; margin-bottom: 10px;">
+  <h2 style="font-size: 24px; font-weight: bold;">منصة متابعة الطلبة باسم المدرسة</h2>
 <p style="font-size: 16px; margin-top: 5px; color: #333;">للعام الدراسي 2026/2027</p>
 </div>
     <button class="menu-btn absence-btn" onclick="showSection('absenceSection')">🟩 📋 تسجيل الغياب</button>
@@ -204,6 +204,10 @@ button:hover {
           📌 <strong>تنبيه:</strong> تسجيل المعلم يحفظ الحالة فقط. إرسال WhatsApp يتم من هذه اللوحة بواسطة الإدارة.
         </div>
         <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;">
+          <button type="button" onclick="toggleSchoolSettings()"
+                  style="background:#0f766e;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
+            🏫 إعدادات المدرسة
+          </button>
           <button type="button" onclick="toggleAdminStudentLists()"
                   style="background:#7c3aed;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
             📚 قوائم الطلاب
@@ -212,6 +216,41 @@ button:hover {
                   style="background:#f59e0b;color:#fff;border:0;border-radius:16px;padding:14px 28px;font-size:20px;font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.12);cursor:pointer;">
             ✏️ تعديل قوائم الطلاب
           </button>
+        </div>
+
+        <div id="schoolSettingsInline" style="display:none;background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:20px;margin:15px 0 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <h3 style="margin:0;">🏫 إعدادات المدرسة</h3>
+            <button type="button" onclick="toggleSchoolSettings()" style="background:#64748b;color:#fff;">✖ إغلاق</button>
+          </div>
+
+          <div style="max-width:800px;margin:18px auto;">
+            <label style="display:block;font-weight:bold;margin-bottom:7px;">اسم المدرسة</label>
+            <input id="schoolSettingsName" type="text"
+                   placeholder="اكتب اسم المدرسة"
+                   style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:10px;font-size:17px;">
+
+            <label style="display:block;font-weight:bold;margin:18px 0 7px;">شعار المدرسة</label>
+            <div style="display:flex;align-items:center;gap:15px;flex-wrap:wrap;">
+              <img id="schoolLogoPreview" alt="شعار المدرسة"
+                   style="width:90px;height:90px;object-fit:contain;border:1px solid #ddd;border-radius:12px;background:#f8fafc;display:none;">
+              <input id="schoolLogoFile" type="file" accept="image/*" onchange="saveSchoolLogoFile(this)" style="padding:10px;">
+            </div>
+
+            <p style="color:#64748b;font-size:13px;line-height:1.8;margin-top:10px;">
+              يتم حفظ إعدادات المدرسة على هذا الجهاز والمتصفح، وتظهر في واجهة البرنامج والتقارير المطبوعة.
+            </p>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;">
+              <button type="button" onclick="saveSchoolSettings()" style="background:#0f766e;color:#fff;">
+                💾 حفظ الإعدادات
+              </button>
+              <button type="button" onclick="resetSchoolSettings()" style="background:#dc2626;color:#fff;">
+                ↩️ استعادة الافتراضي
+              </button>
+            </div>
+            <div id="schoolSettingsMessage" style="margin-top:12px;text-align:center;font-weight:bold;"></div>
+          </div>
         </div>
 
         <div id="studentEditorInline" style="display:none;" class="student-editor-card">
@@ -312,7 +351,7 @@ button:hover {
   <div id="absenceSection" class="hidden">
     <div class="top-bar">
       <button class="back-btn" onclick="showSection('mainMenu')">🏠 رجوع</button>
-      <h2><span class="icon">🎓</span>تسجيل غياب الطلبة بمدرسة معولة بن شمس</h2>
+      <h2><span class="icon">🎓</span>تسجيل غياب الطلبة باسم المدرسة</h2>
     </div>
     <div class="section-content">
       <div class="controls">
@@ -386,7 +425,7 @@ button:hover {
   <div id="violationSection" class="hidden">
     <div class="top-bar">
       <button class="back-btn" onclick="showSection('mainMenu')">🏠 رجوع</button>
-      <h2><span class="icon">🎓</span>تسجيل مخالفات الطلبة بمدرسة معولة بن شمس</h2>
+      <h2><span class="icon">🎓</span>تسجيل مخالفات الطلبة باسم المدرسة</h2>
     </div>
     <div class="section-content">
       <div class="controls">
@@ -422,6 +461,155 @@ button:hover {
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+
+/* =========================================================
+   إعدادات المدرسة — تظهر داخل قسم الإدارة فقط
+   ========================================================= */
+const SCHOOL_SETTINGS_KEY = 'mawalah_school_settings_v1';
+const DEFAULT_SCHOOL_NAME = 'اسم المدرسة';
+
+function getSchoolSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SCHOOL_SETTINGS_KEY) || '{}');
+    return {
+      name: String(saved.name || '').trim(),
+      logo: String(saved.logo || '')
+    };
+  } catch (e) {
+    return {name: '', logo: ''};
+  }
+}
+
+function applySchoolSettings() {
+  const settings = getSchoolSettings();
+  const name = settings.name || DEFAULT_SCHOOL_NAME;
+
+  document.querySelectorAll('[data-school-name]').forEach(el => {
+    el.textContent = name;
+  });
+
+  const preview = document.getElementById('schoolLogoPreview');
+  if (preview) {
+    if (settings.logo) {
+      preview.src = settings.logo;
+      preview.style.display = 'block';
+    } else {
+      preview.removeAttribute('src');
+      preview.style.display = 'none';
+    }
+  }
+}
+
+function toggleSchoolSettings() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  const panel = document.getElementById('schoolSettingsInline');
+  if (!panel) return;
+
+  const opening = panel.style.display === 'none' || panel.style.display === '';
+  panel.style.display = opening ? 'block' : 'none';
+
+  if (opening) {
+    const settings = getSchoolSettings();
+    const nameInput = document.getElementById('schoolSettingsName');
+    if (nameInput) nameInput.value = settings.name || DEFAULT_SCHOOL_NAME;
+    applySchoolSettings();
+    panel.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+}
+
+function saveSchoolSettings() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  const input = document.getElementById('schoolSettingsName');
+  const name = String(input?.value || '').trim();
+
+  if (!name) {
+    alert('يرجى إدخال اسم المدرسة.');
+    return;
+  }
+
+  const current = getSchoolSettings();
+  localStorage.setItem(SCHOOL_SETTINGS_KEY, JSON.stringify({
+    name,
+    logo: current.logo || ''
+  }));
+
+  applySchoolSettings();
+
+  const msg = document.getElementById('schoolSettingsMessage');
+  if (msg) {
+    msg.textContent = '✅ تم حفظ إعدادات المدرسة بنجاح.';
+    msg.style.color = '#166534';
+  }
+}
+
+function saveSchoolLogoFile(input) {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    input.value = '';
+    return;
+  }
+
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    alert('يرجى اختيار صورة صحيحة للشعار.');
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function() {
+    const current = getSchoolSettings();
+
+    localStorage.setItem(SCHOOL_SETTINGS_KEY, JSON.stringify({
+      name: current.name || DEFAULT_SCHOOL_NAME,
+      logo: String(reader.result || '')
+    }));
+
+    applySchoolSettings();
+
+    const msg = document.getElementById('schoolSettingsMessage');
+    if (msg) {
+      msg.textContent = '✅ تم حفظ شعار المدرسة.';
+      msg.style.color = '#166534';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function resetSchoolSettings() {
+  if (!adminDashboardUnlocked) {
+    alert('يرجى الدخول إلى الإدارة أولاً.');
+    return;
+  }
+
+  if (!confirm('هل تريد استعادة اسم المدرسة الافتراضي وحذف الشعار المحفوظ؟')) {
+    return;
+  }
+
+  localStorage.removeItem(SCHOOL_SETTINGS_KEY);
+
+  const input = document.getElementById('schoolSettingsName');
+  if (input) input.value = DEFAULT_SCHOOL_NAME;
+
+  applySchoolSettings();
+
+  const msg = document.getElementById('schoolSettingsMessage');
+  if (msg) {
+    msg.textContent = '↩️ تمت استعادة الإعدادات الافتراضية.';
+    msg.style.color = '#075985';
+  }
 }
 
 const SHEET_URLS = ['https://script.google.com/macros/s/AKfycbzlQe4iAbLDA53MFkP8LRVFjFO_K9yEkIT1ssh-BNje_VyogUuIaNTiK2YPdW6zP7Bh0Q/exec'];
@@ -1950,7 +2138,7 @@ function printStudentReport() {
       </style>
     </head>
     <body>
-      <h2>مدرسة معولة بن شمس</h2>
+      <h2>${escapeHtml(getSchoolSettings().name || DEFAULT_SCHOOL_NAME)}</h2>
       ${printable.innerHTML}
     </body>
     </html>
@@ -2015,7 +2203,7 @@ function exportAdminListPDF() {
       </style>
     </head>
     <body>
-      <h2>مدرسة معولة بن شمس (5-12)</h2>
+      <h2>${escapeHtml(getSchoolSettings().name || DEFAULT_SCHOOL_NAME)}</h2>
       <h3>${escapeHtml(title)}</h3>
       <p>تاريخ التقرير: ${new Date().toLocaleDateString('ar-OM')}</p>
       <table>
