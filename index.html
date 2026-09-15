@@ -1495,6 +1495,7 @@ function sendData(rows, type) {
     body: JSON.stringify({
       action: 'record',
       pin: ADMIN_PIN,
+      schoolName: getSchoolSettings().name || DEFAULT_SCHOOL_NAME,
       records: records
     }),
     cache: 'no-store',
@@ -1641,6 +1642,7 @@ function noAbsentees() {
     body: JSON.stringify({
       action: 'record',
       pin: ADMIN_PIN,
+      schoolName: getSchoolSettings().name || DEFAULT_SCHOOL_NAME,
       records: [{
         type: 'Abs',
         studentName: 'لا يوجد غياب',
@@ -1924,6 +1926,8 @@ async function sendSelectedAdminRecords() {
 
   setAdminSendingUI(true, `⏳ جاري إرسال ${pending} رسالة إلى WhatsApp...`);
 
+  const schoolNameForWhatsApp = getSchoolSettings().name || DEFAULT_SCHOOL_NAME;
+
   try {
     const response = await fetch(ADMIN_WEBAPP_URL, {
       method: 'POST',
@@ -1931,7 +1935,8 @@ async function sendSelectedAdminRecords() {
       body: JSON.stringify({
         action: 'send',
         pin: ADMIN_PIN,
-        ids: ids
+        ids: ids,
+        schoolName: schoolNameForWhatsApp
       })
     });
 
