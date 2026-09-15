@@ -334,6 +334,9 @@ async function loadSchools(){
                   <button class="px-3 py-1.5 bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 font-medium rounded-xl transition text-xs shadow-sm flex items-center gap-1" onclick="deleteSchool('${escapeJs(s.schoolId)}')">
                     <i class="fa-solid fa-trash-can"></i> حذف الرابط
                   </button>
+                  <button class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium rounded-xl transition text-xs shadow-sm flex items-center gap-1" onclick="editSchool('${escapeJs(s.schoolId)}')">
+                    <i class="fa-solid fa-pen"></i> تعديل الاسم
+                  </button>
                 </div>
               </td>
             </tr>
@@ -360,6 +363,25 @@ async function toggleSchool(id,active){
       }
     }
   );
+}
+
+async function editSchool(id){
+  const school=schoolsCache.find(x=>String(x.schoolId)===String(id));
+  if(!school) return;
+  const name=prompt('أدخل اسم المدرسة الجديد:', school.name || '');
+  if(name===null) return;
+  const clean=name.trim();
+  if(!clean){
+    showModal('اسم غير صالح','يرجى إدخال اسم مدرسة صحيح.','fa-solid fa-triangle-exclamation text-amber-500');
+    return;
+  }
+  try{
+    await apiPost({action:'ownerUpdateSchool',pin,schoolId:id,name:clean,logo:school.logo||''});
+    await loadSchools();
+    showModal('تم تحديث الاسم','تم تغيير اسم المدرسة بنجاح.\n\nسيظهر الاسم الجديد تلقائياً في واجهة المدرسة ورسائل WhatsApp القادمة.','fa-solid fa-circle-check text-emerald-500');
+  }catch(e){
+    showModal('تعذر التعديل','❌ '+e.message,'fa-solid fa-circle-xmark text-rose-500');
+  }
 }
 
 async function deleteSchool(id){
