@@ -132,9 +132,25 @@ button:hover {
 <body>
   <!-- الصفحة الرئيسية -->
   <div id="mainMenu" class="menu-container">
+    <div id="schoolIdentityHeader" style="
+      display:flex;align-items:center;justify-content:center;gap:14px;
+      flex-wrap:wrap;margin:8px auto 18px;text-align:center;
+    ">
+      <img id="mainSchoolLogo" data-school-logo alt=""
+           style="width:78px;height:78px;object-fit:contain;border-radius:14px;
+                  background:#fff;border:1px solid #e2e8f0;padding:6px;
+                  box-sizing:border-box;display:none;">
+      <div>
+        <div style="font-size:26px;font-weight:800;color:#1e293b;">
+          <span data-school-name>اسم المدرسة</span>
+        </div>
+        <div style="font-size:13px;color:#64748b;margin-top:4px;">منصة متابعة الطلبة</div>
+      </div>
+    </div>
+
     <div style="text-align: center; margin-top: 20px;" class="fade-in">
-  <img src="" alt="شعار المدرسة" style="width: 120px; height: auto; margin-bottom: 10px;">
-  <h2 style="font-size: 24px; font-weight: bold;">منصة متابعة الطلبة باسم المدرسة</h2>
+  
+  <h2 style="font-size: 24px; font-weight: bold;">منصة متابعة الطلبة باسم <span data-school-name>اسم المدرسة</span></h2>
 <p style="font-size: 16px; margin-top: 5px; color: #333;">للعام الدراسي 2026/2027</p>
 </div>
     <button class="menu-btn absence-btn" onclick="showSection('absenceSection')">🟩 📋 تسجيل الغياب</button>
@@ -490,16 +506,15 @@ function applySchoolSettings() {
     el.textContent = name;
   });
 
-  const preview = document.getElementById('schoolLogoPreview');
-  if (preview) {
+  document.querySelectorAll('[data-school-logo]').forEach(el => {
     if (settings.logo) {
-      preview.src = settings.logo;
-      preview.style.display = 'block';
+      el.src = settings.logo;
+      el.style.display = '';
     } else {
-      preview.removeAttribute('src');
-      preview.style.display = 'none';
+      el.removeAttribute('src');
+      el.style.display = 'none';
     }
-  }
+  });
 }
 
 function toggleSchoolSettings() {
@@ -611,6 +626,8 @@ function resetSchoolSettings() {
     msg.style.color = '#075985';
   }
 }
+
+document.addEventListener('DOMContentLoaded', applySchoolSettings);
 
 const SHEET_URLS = ['https://script.google.com/macros/s/AKfycbzlQe4iAbLDA53MFkP8LRVFjFO_K9yEkIT1ssh-BNje_VyogUuIaNTiK2YPdW6zP7Bh0Q/exec'];
 const ADMIN_PIN = '1982';
