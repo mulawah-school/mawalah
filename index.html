@@ -476,6 +476,97 @@ if (window.pdfjsLib) {
 }
 
 
+const MULTI_SCHOOL_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwX06YdlSJP6Le-YfovLoZKuBEe8X6t9j6PBsTdda7oWYxbprz0PPtUE-gSnYCaKRGixA/exec';
+
+/* =========================================================
+   MULTI-SCHOOL LINK CONTEXT
+   لا يتم نقل أو حذف أي بيانات محفوظة في localStorage أو Drive.
+   ========================================================= */
+const SCHOOL_LINK_CONTEXT = (() => {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    schoolId: String(p.get('school') || '').trim(),
+    key: String(p.get('key') || '').trim()
+  };
+})();
+
+let SCHOOL_CONTEXT_READY = false;
+let SCHOOL_CONTEXT_ERROR = '';
+
+function schoolHasLinkContext() {
+  return !!(SCHOOL_LINK_CONTEXT.schoolId && SCHOOL_LINK_CONTEXT.key);
+}
+
+function schoolStorageKey(base) {
+  return schoolHasLinkContext()
+    ? `${base}__school_${SCHOOL_LINK_CONTEXT.schoolId}`
+    : base;
+}
+
+async function resolveSchoolLink() {
+  if (!schoolHasLinkContext()) {
+    SCHOOL_CONTEXT_READY = true;
+    return {success: true, legacy: true};
+  }
+
+  try {
+    const url =
+      `${MULTI_SCHOOL_WEBAPP_URL}?action=resolveSchool` +
+      `&school=${encodeURIComponent(SCHOOL_LINK_CONTEXT.schoolId)}` +
+      `&key=${encodeURIComponent(SCHOOL_LINK_CONTEXT.key)}` +
+      `&_=${Date.now()}`;
+
+    const response = await fetch(url, {cache:'no-store'});
+    const result = await response.json();
+
+    if (!result.success || !result.school) {
+      throw new Error(result.error || 'رابط المدرسة غير صالح.');
+    }
+
+    if (result.school.active !== true) {
+      throw new Error('تم تعطيل رابط هذه المدرسة من لوحة المالك.');
+    }
+
+    SCHOOL_CONTEXT_READY = true;
+
+    // إعدادات المدرسة الجديدة تُحفظ منفصلة لكل مدرسة ولا تمس القديمة.
+    const current = getSchoolSettings();
+    localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
+      name: result.school.name || current.name || DEFAULT_SCHOOL_NAME,
+      logo: result.school.logo || current.logo || ''
+    }));
+
+    return result;
+  } catch (err) {
+    SCHOOL_CONTEXT_ERROR = err.message || String(err);
+    SCHOOL_CONTEXT_READY = false;
+    showSchoolLinkBlocked(SCHOOL_CONTEXT_ERROR);
+    throw err;
+  }
+}
+
+function showSchoolLinkBlocked(message) {
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;
+      padding:25px;background:linear-gradient(135deg,#eff6ff,#fff);font-family:Arial,sans-serif">
+      <div style="max-width:520px;width:100%;background:#fff;border-radius:22px;padding:35px;
+        text-align:center;box-shadow:0 15px 45px rgba(0,0,0,.12)">
+        <div style="font-size:64px">🔒</div>
+        <h2 style="color:#b91c1c;margin:10px 0">رابط المدرسة غير متاح</h2>
+        <p style="color:#475569;line-height:1.9">${escapeHtml(String(message || 'تعذر التحقق من الرابط.'))}</p>
+        <p style="font-size:13px;color:#94a3b8">يرجى استخدام رابط المدرسة الصحيح.</p>
+      </div>
+    </div>`;
+}
+
+function schoolRequestFields() {
+  if (!schoolHasLinkContext()) return {};
+  return {
+    schoolId: SCHOOL_LINK_CONTEXT.schoolId,
+    schoolKey: SCHOOL_LINK_CONTEXT.key
+  };
+}
+
 /* =========================================================
    إعدادات المدرسة — تظهر داخل قسم الإدارة فقط
    ========================================================= */
@@ -484,7 +575,7 @@ const DEFAULT_SCHOOL_NAME = 'اسم المدرسة';
 
 function getSchoolSettings() {
   try {
-    const saved = JSON.parse(localStorage.getItem(SCHOOL_SETTINGS_KEY) || '{}');
+    const saved = JSON.parse(localStorage.getItem(schoolStorageKey(SCHOOL_SETTINGS_KEY)) || '{}');
     return {
       name: String(saved.name || '').trim(),
       logo: String(saved.logo || '')
@@ -549,7 +640,7 @@ function saveSchoolSettings() {
   }
 
   const current = getSchoolSettings();
-  localStorage.setItem(SCHOOL_SETTINGS_KEY, JSON.stringify({
+  localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
     name,
     logo: current.logo || ''
   }));
@@ -583,7 +674,7 @@ function saveSchoolLogoFile(input) {
   reader.onload = function() {
     const current = getSchoolSettings();
 
-    localStorage.setItem(SCHOOL_SETTINGS_KEY, JSON.stringify({
+    localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
       name: current.name || DEFAULT_SCHOOL_NAME,
       logo: String(reader.result || '')
     }));
@@ -609,7 +700,7 @@ function resetSchoolSettings() {
     return;
   }
 
-  localStorage.removeItem(SCHOOL_SETTINGS_KEY);
+  localStorage.removeItem(schoolStorageKey(SCHOOL_SETTINGS_KEY));
 
   const input = document.getElementById('schoolSettingsName');
   if (input) input.value = DEFAULT_SCHOOL_NAME;
@@ -623,11 +714,22 @@ function resetSchoolSettings() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', applySchoolSettings);
+document.addEventListener('DOMContentLoaded', async () => {
+  applySchoolSettings();
+  if (schoolHasLinkContext()) {
+    try {
+      await resolveSchoolLink();
+      applySchoolSettings();
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+  }
+});
 
 const SHEET_URLS = ['https://script.google.com/macros/s/AKfycbzlQe4iAbLDA53MFkP8LRVFjFO_K9yEkIT1ssh-BNje_VyogUuIaNTiK2YPdW6zP7Bh0Q/exec'];
 const ADMIN_PIN = '1982';
-const ADMIN_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwX06YdlSJP6Le-YfovLoZKuBEe8X6t9j6PBsTdda7oWYxbprz0PPtUE-gSnYCaKRGixA/exec';
+const ADMIN_WEBAPP_URL = MULTI_SCHOOL_WEBAPP_URL;
 
 const EXPORT_WEBAPP_URLS = {
   Abs: ADMIN_WEBAPP_URL,
@@ -696,12 +798,12 @@ function studentListKey(grade, section) {
 }
 
 function saveLocalStudentLists() {
-  localStorage.setItem('mawalah_student_lists_v2', JSON.stringify(localStudentLists));
+  localStorage.setItem(schoolStorageKey('mawalah_student_lists_v2'), JSON.stringify(localStudentLists));
 }
 
 function loadLocalStudentLists() {
   try {
-    const saved = localStorage.getItem('mawalah_student_lists_v2');
+    const saved = localStorage.getItem(schoolStorageKey('mawalah_student_lists_v2'));
     localStudentLists = saved ? JSON.parse(saved) : {};
   } catch (e) {
     console.error('تعذر قراءة القوائم المحفوظة', e);
@@ -1494,8 +1596,9 @@ function sendData(rows, type) {
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({
       action: 'record',
-      pin: ADMIN_PIN,
+      pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
       schoolName: getSchoolSettings().name || DEFAULT_SCHOOL_NAME,
+      ...schoolRequestFields(),
       records: records
     }),
     cache: 'no-store',
@@ -1641,8 +1744,9 @@ function noAbsentees() {
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
     body: JSON.stringify({
       action: 'record',
-      pin: ADMIN_PIN,
+      pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
       schoolName: getSchoolSettings().name || DEFAULT_SCHOOL_NAME,
+      ...schoolRequestFields(),
       records: [{
         type: 'Abs',
         studentName: 'لا يوجد غياب',
@@ -1717,7 +1821,10 @@ async function loadAdminRecords() {
   view.innerHTML = '<div style="padding:25px;text-align:center;">⏳ جاري تحميل المعطيات...</div>';
 
   try {
-    const url = `${ADMIN_WEBAPP_URL}?action=records&pin=${encodeURIComponent(ADMIN_PIN)}&_=${Date.now()}`;
+    const authQuery = schoolHasLinkContext()
+      ? `&school=${encodeURIComponent(SCHOOL_LINK_CONTEXT.schoolId)}&key=${encodeURIComponent(SCHOOL_LINK_CONTEXT.key)}`
+      : `&pin=${encodeURIComponent(ADMIN_PIN)}`;
+    const url = `${ADMIN_WEBAPP_URL}?action=records${authQuery}&_=${Date.now()}`;
     const response = await fetch(url, {cache: 'no-store'});
     const result = await response.json();
 
@@ -1934,7 +2041,8 @@ async function sendSelectedAdminRecords() {
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
       body: JSON.stringify({
         action: 'send',
-        pin: ADMIN_PIN,
+        pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
+        ...schoolRequestFields(),
         ids: ids,
         schoolName: schoolNameForWhatsApp
       })
@@ -1992,7 +2100,8 @@ async function selectAndSendAllPending() {
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
       body: JSON.stringify({
         action: 'send',
-        pin: ADMIN_PIN,
+        pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
+        ...schoolRequestFields(),
         ids: pending.map(r => String(r.id))
       })
     });
@@ -2034,7 +2143,8 @@ async function deleteSelectedAdminRecords() {
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
       body: JSON.stringify({
         action: 'delete',
-        pin: ADMIN_PIN,
+        pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
+        ...schoolRequestFields(),
         ids: ids
       })
     });
