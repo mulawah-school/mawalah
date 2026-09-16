@@ -6,7 +6,7 @@
   <link rel="icon" href="" type="image/png">
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>نظام المدارس - بدون قوائم PDF | منصة متابعة الطلبة</title>
+<title>منصة متابعة الطلبة</title>
 <style>
 @media (max-width: 600px) {
   button {
@@ -116,14 +116,22 @@ th{background:#f0fdfa!important;color:#115e59!important}
 button{border-radius:12px!important}
 input,select{border-radius:12px!important}
 
-.school-message-quota{
-  display:inline-flex;align-items:center;gap:5px;margin-right:10px;
-  padding:6px 12px;border-radius:999px;font-size:13px;font-weight:800;
-  background:rgba(20,184,166,.12);color:#0f766e;border:1px solid rgba(20,184,166,.22);
-  vertical-align:middle;
-}
-.school-message-quota.warning{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
-.school-message-quota.danger{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+/* ===== عداد رسائل WhatsApp في لوحة الإدارة ===== */
+.whatsapp-quota-card{background:linear-gradient(135deg,#ecfdf5,#f0fdfa);border:1px solid #99f6e4;border-radius:18px;padding:18px 22px;margin:0 0 18px;box-shadow:0 5px 16px rgba(15,118,110,.08)}
+.whatsapp-quota-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.whatsapp-quota-title{font-size:18px;font-weight:800;color:#115e59}
+.whatsapp-quota-number{font-size:30px;font-weight:900;color:#047857;line-height:1.1}
+.whatsapp-quota-label{color:#475569;font-size:13px;margin-top:4px}
+.whatsapp-quota-progress{height:10px;background:#d1fae5;border-radius:999px;overflow:hidden;margin-top:13px}
+.whatsapp-quota-progress>div{height:100%;width:0%;background:#10b981;border-radius:999px;transition:width .3s ease}
+.whatsapp-quota-card.warning{background:#fff7ed;border-color:#fed7aa}
+.whatsapp-quota-card.warning .whatsapp-quota-title,.whatsapp-quota-card.warning .whatsapp-quota-number{color:#c2410c}
+.whatsapp-quota-card.warning .whatsapp-quota-progress{background:#ffedd5}
+.whatsapp-quota-card.warning .whatsapp-quota-progress>div{background:#f59e0b}
+.whatsapp-quota-card.danger{background:#fef2f2;border-color:#fecaca}
+.whatsapp-quota-card.danger .whatsapp-quota-title,.whatsapp-quota-card.danger .whatsapp-quota-number{color:#b91c1c}
+.whatsapp-quota-card.danger .whatsapp-quota-progress{background:#fee2e2}
+.whatsapp-quota-card.danger .whatsapp-quota-progress>div{background:#ef4444}
 </style>
 <style>
 /* ===== محرر قوائم الطلاب ===== */
@@ -153,7 +161,8 @@ input,select{border-radius:12px!important}
 }
 </style>
 
-  </head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
 <body>
   <!-- الصفحة الرئيسية -->
   <div id="mainMenu" class="menu-container">
@@ -165,7 +174,7 @@ input,select{border-radius:12px!important}
            style="width:120px;height:120px;object-fit:contain;
                   display:none;margin:0 auto;">
       <div style="font-size:28px;font-weight:800;color:#1e293b;line-height:1.35;">
-        منصة متابعة الطلبة مدرسة <span data-school-name>اسم المدرسة</span> <span id="schoolMessageQuota" class="school-message-quota" style="display:none">💬 المتبقي: <b id="schoolMessagesRemaining">—</b></span>
+        منصة متابعة الطلبة مدرسة <span data-school-name>اسم المدرسة</span>
       </div>
     </div>
 
@@ -205,7 +214,7 @@ input,select{border-radius:12px!important}
             ارفع ملفًا أو عدة ملفات. سيتم قراءة الصف والشعبة والاسم ورقم الهاتف تلقائيًا من القوائم.
             يمكنك رفع قائمة جديدة لنفس الصف والشعبة لاستبدال القائمة السابقة.
           </p>
-          <input id="pdfFiles" type="file" multiple
+          <input id="pdfFiles" type="file" accept="application/pdf,.pdf" multiple
                  style="padding:10px;width:90%;max-width:600px;">
           <br><br>
           <button onclick="importPDFLists()" style="background:#0077b6;color:#fff;">📥 استيراد القوائم</button>
@@ -224,9 +233,6 @@ input,select{border-radius:12px!important}
     <div class="top-bar">
       <button class="back-btn" onclick="showSection('mainMenu')">🏠 رجوع</button>
       <h2><span class="icon">👨‍💼</span>لوحة الإدارة</h2>
-<span id="adminMessageQuota" class="admin-message-quota" style="display:none">
-      💬 الرسائل المتبقية: <b id="adminMessagesRemaining">—</b>
-    </span>
     </div>
     <div class="section-content admin-dashboard">
       <div id="adminDashboardLogin" style="max-width:420px;margin:30px auto;background:#fff;padding:25px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.12);">
@@ -240,7 +246,23 @@ input,select{border-radius:12px!important}
       </div>
 
       <div id="adminDashboardPanel" style="display:none;">
-        <div style="background:#ecfeff;border:1px solid #a5f3fc;padding:12px;border-radius:12px;text-align:center;margin-bottom:15px;">
+        
+        <div id="whatsappQuotaCard" class="whatsapp-quota-card" style="display:none;">
+          <div class="whatsapp-quota-head">
+            <div>
+              <div class="whatsapp-quota-title">📱 رصيد رسائل WhatsApp</div>
+              <div id="whatsappQuotaSchool" class="whatsapp-quota-label">المدرسة</div>
+            </div>
+            <div style="text-align:center;min-width:125px;">
+              <div id="whatsappMessagesRemaining" class="whatsapp-quota-number">—</div>
+              <div class="whatsapp-quota-label">رسالة متبقية</div>
+            </div>
+          </div>
+          <div class="whatsapp-quota-progress"><div id="whatsappQuotaProgress"></div></div>
+          <div id="whatsappQuotaDetails" class="whatsapp-quota-label" style="text-align:center;margin-top:9px;"></div>
+        </div>
+
+<div style="background:#ecfeff;border:1px solid #a5f3fc;padding:12px;border-radius:12px;text-align:center;margin-bottom:15px;">
           📌 <strong>تنبيه:</strong> تسجيل المعلم يحفظ الحالة فقط. إرسال WhatsApp يتم من هذه اللوحة بواسطة الإدارة.
         </div>
         <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:12px 0 18px;">
@@ -321,7 +343,17 @@ input,select{border-radius:12px!important}
               <option value="">اختر الشعبة</option>
             </select>
             <input id="studentEditorSearch" type="search" placeholder="🔎 البحث بالاسم أو الهاتف" oninput="renderStudentEditor()">
-            
+            <button type="button" onclick="saveStudentEditorChanges()" style="background:#16a34a;color:#fff;">💾 حفظ التعديلات</button>
+          </div>
+
+          <div id="studentEditorMessage"></div>
+          <div id="studentEditorTableWrap"></div>
+        </div>
+
+        <div id="adminStudentListsInline" style="display:none;background:#fff;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.10);padding:18px;margin:15px 0 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <h3 style="margin:0;">📚 إدارة قوائم الطلاب PDF</h3>
+            <button type="button" onclick="toggleAdminStudentLists()" style="background:#64748b;color:#fff;">✖ إغلاق</button>
           </div>
 
           <p style="color:#555;line-height:1.8;text-align:center;">
@@ -330,10 +362,10 @@ input,select{border-radius:12px!important}
           </p>
 
           <div style="text-align:center;">
-            <input id="pdfFilesInline" type="file" multiple
+            <input id="pdfFilesInline" type="file" accept="application/pdf,.pdf" multiple
                    style="padding:10px;width:90%;max-width:600px;">
             <br><br>
-            
+            <button onclick="importPDFListsInline()" style="background:#0077b6;color:#fff;">📥 استيراد قوائم PDF</button>
             <button onclick="clearStudentLists()" style="background:#dc2626;color:#fff;">🗑️ حذف جميع القوائم</button>
           </div>
 
@@ -549,13 +581,12 @@ async function resolveSchoolLink() {
 
     // اسم المدرسة القادم من لوحة المالك هو الاسم الرسمي للرابط.
     // لا نعتمد اسمًا افتراضيًا ولا اسمًا محفوظًا من جهاز آخر.
-    updateSchoolMessageQuota(result.school);
-    updateAdminMessageQuota(result.school);
-
     SCHOOL_REGISTERED_SETTINGS = {
       name: String(result.school.name || '').trim(),
       logo: String(result.school.logo || '').trim()
     };
+
+    updateWhatsAppQuota(result.school);
 
     // حفظ نسخة محلية منفصلة للرابط، دون المساس بالبيانات القديمة.
     localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
@@ -625,53 +656,57 @@ function getSchoolSettings() {
 }
 
 
-function updateAdminMessageQuota(school){
-  const box=document.getElementById('adminMessageQuota');
-  const num=document.getElementById('adminMessagesRemaining');
-  if(!box || !num) return;
+function updateWhatsAppQuota(school) {
+  const card = document.getElementById('whatsappQuotaCard');
+  const remainingEl = document.getElementById('whatsappMessagesRemaining');
+  const progressEl = document.getElementById('whatsappQuotaProgress');
+  const schoolEl = document.getElementById('whatsappQuotaSchool');
+  const detailsEl = document.getElementById('whatsappQuotaDetails');
 
-  const limit=Number(school && school.messageLimit || 0);
-  if(!limit){
-    box.style.display='none';
+  if (!card || !remainingEl || !progressEl) return;
+
+  const data = school || {};
+  const hasRemaining = data.messagesRemaining !== undefined && data.messagesRemaining !== null && data.messagesRemaining !== '';
+  const hasLimit = data.messageLimit !== undefined && data.messageLimit !== null && data.messageLimit !== '';
+
+  // لا نعرض رقمًا غير حقيقي إذا لم يرسل السيرفر بيانات الرصيد.
+  if (!hasRemaining && !hasLimit) {
+    card.style.display = 'none';
     return;
   }
 
-  const remaining=Math.max(0, Number(
-    school && school.messagesRemaining != null
-      ? school.messagesRemaining
-      : limit-Number(school.messagesUsed||0)
-  ));
+  const limit = hasLimit ? Math.max(0, Number(data.messageLimit) || 0) : 0;
+  const used = Math.max(0, Number(data.messagesUsed) || 0);
+  const remaining = hasRemaining
+    ? Math.max(0, Number(data.messagesRemaining) || 0)
+    : Math.max(0, limit - used);
 
-  box.style.display='inline-flex';
-  num.textContent=remaining.toLocaleString('ar-OM');
-  box.classList.remove('warning','danger');
+  remainingEl.textContent = remaining.toLocaleString('ar-OM');
+  schoolEl.textContent = '🏫 ' + String(data.name || getSchoolSettings().name || DEFAULT_SCHOOL_NAME);
 
-  if(remaining <= Math.max(10,Math.ceil(limit*.1)))
-    box.classList.add('danger');
-  else if(remaining <= Math.max(25,Math.ceil(limit*.25)))
-    box.classList.add('warning');
-}
-
-function updateSchoolMessageQuota(school){
-  const box=document.getElementById('schoolMessageQuota');
-  const num=document.getElementById('schoolMessagesRemaining');
-  if(!box || !num) return;
-  const limit=Number(school && school.messageLimit || 0);
-  const remaining=Math.max(0, Number(
-    school && school.messagesRemaining != null
-      ? school.messagesRemaining
-      : (limit ? limit-Number(school.messagesUsed||0) : 0)
-  ));
-  // 0 يعني غير محدود
-  if(!limit){
-    box.style.display='none';
-    return;
+  if (limit > 0) {
+    const usedNow = Math.min(limit, used || Math.max(0, limit - remaining));
+    const percent = Math.min(100, Math.max(0, (remaining / limit) * 100));
+    progressEl.style.width = percent + '%';
+    detailsEl.textContent = 'المستخدم: ' + usedNow.toLocaleString('ar-OM') + ' من ' + limit.toLocaleString('ar-OM') + ' رسالة';
+  } else {
+    progressEl.style.width = '100%';
+    detailsEl.textContent = 'الرصيد المتبقي: ' + remaining.toLocaleString('ar-OM') + ' رسالة';
   }
-  box.style.display='inline-flex';
-  num.textContent=remaining.toLocaleString('ar-OM');
-  box.classList.remove('warning','danger');
-  if(remaining <= Math.max(10, Math.ceil(limit*.1))) box.classList.add('danger');
-  else if(remaining <= Math.max(25, Math.ceil(limit*.25))) box.classList.add('warning');
+
+  card.classList.remove('warning','danger');
+
+  if (limit > 0) {
+    const ratio = remaining / limit;
+    if (remaining <= 0 || ratio <= 0.10) card.classList.add('danger');
+    else if (ratio <= 0.25) card.classList.add('warning');
+  } else if (remaining <= 10) {
+    card.classList.add('danger');
+  } else if (remaining <= 25) {
+    card.classList.add('warning');
+  }
+
+  card.style.display = 'block';
 }
 
 function applySchoolSettings() {
@@ -1107,6 +1142,7 @@ async function extractStudentsFromPDF(file) {
   }
 
   const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
 
   const students = [];
   let detectedGrade = '';
@@ -1307,7 +1343,7 @@ function renderStudentListsSummary() {
   });
 
   if (!keys.length) {
-    box.innerHTML = '';
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
     return;
   }
 
@@ -1325,7 +1361,713 @@ function renderStudentListsSummary() {
               <td>${item.students.length}</td>
               <td>${escapeHtml(item.fileName || '')}</td>
               <td>${escapeHtml(item.updatedAt || '')}</td>
-              <td>
+              <td><button onclick="deleteStudentList('${key}')" style="background:#dc2626;color:#fff;">حذف</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px;color:#666;margin-top:12px;">
+      القوائم المستوردة محفوظة على هذا الجهاز/المتصفح. عند رفع ملف جديد لنفس الصف والشعبة سيتم استبداله تلقائيًا.
+    </p>`;
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
+  }[ch]));
+}
+
+function deleteStudentList(key) {
+  if (!confirm('هل تريد حذف هذه القائمة؟')) return;
+  delete localStudentLists[key];
+  saveLocalStudentLists();
+  renderStudentListsSummary();
+  alert('تم حذف القائمة.');
+}
+
+function clearStudentLists() {
+  if (!confirm('سيتم حذف جميع قوائم PDF المحفوظة على هذا الجهاز. هل أنت متأكد؟')) return;
+  localStudentLists = {};
+  saveLocalStudentLists();
+  renderStudentListsSummary();
+  alert('تم حذف جميع القوائم.');
+}
+
+function renderAbsence() {
+  const tbody = document.getElementById('studentsBodyAbs');
+  tbody.innerHTML = '';
+  state.Abs.students.forEach((student, index) => {
+    if (!(student.id in state.Abs.attendance)) state.Abs.attendance[student.id] = true;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
+    const tdStatus = document.createElement('td');
+    const btn = document.createElement('button');
+    const present = state.Abs.attendance[student.id];
+    btn.textContent = present ? 'حاضر' : 'غائب';
+    btn.className = present ? 'present' : 'absent';
+    btn.onclick = () => { state.Abs.attendance[student.id] = !present; renderAbsence(); };
+    tdStatus.appendChild(btn);
+    tr.appendChild(tdStatus);
+    tbody.appendChild(tr);
+  });
+}
+
+
+
+function renderViolations() {
+  const tbody = document.getElementById('studentsBodyViol');
+  tbody.innerHTML = '';
+
+  state.Viol.students.forEach((student, index) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${student.name}</td>
+    `;
+
+    const tdViolation = document.createElement('td');
+
+    const mainViolations = [
+      {
+        title: 'الإخلال بنظام الطابور أو الحصص الدراسية أو الأنشطة المدرسية',
+        subOptions: [
+          'النوم في أثناء الحصص أو الأنشطة المدرسية',
+          'الإهمال في أداء الواجبات أو الأنشطة المدرسية',
+          'عدم الإنصات لتوجيهات المعلم',
+          'التسبب في الإزعاج بالقرب من الصفوف الدراسية',
+          'عدم الالتزام بإحضار الكتب والدفاتر والأدوات المدرسية والملابس الرياضية',
+          'التأخر عن الحصص الدراسية أو الغياب'
+        ]
+      },
+      {
+        title: 'الشجار مع زملائه والإساءة بالقول'
+      },
+      {
+        title: 'تناول المأكولات أو المشروبات في غير الوقت المخصص أو مضغ العلكة'
+      },
+      {
+        title: 'عدم المحافظة على النظافة أو المظهر الشخصي أو مرافق المدرسة'
+      },
+      {
+        title: 'التأخر عن الحصة الدراسية'
+      }
+    ];
+
+    mainViolations.forEach(main => {
+      const title = document.createElement('div');
+      title.textContent = main.title;
+      title.style.cursor = 'pointer';
+      title.style.background = '#f8d7da';
+      title.style.padding = '6px';
+      title.style.borderRadius = '6px';
+      title.style.marginBottom = '5px';
+
+      const container = document.createElement('div');
+      container.style.marginBottom = '8px';
+
+      if (main.subOptions) {
+        const subList = document.createElement('div');
+        subList.style.display = 'none';
+        subList.style.marginTop = '5px';
+
+        main.subOptions.forEach(optionText => {
+          const label = document.createElement('label');
+          label.style.display = 'block';
+
+          const radio = document.createElement('input');
+          radio.type = 'radio';
+          radio.name = 'viol_' + student.id;
+          radio.value = optionText;
+
+          if (state.Viol.violations[student.id] === optionText) {
+            radio.checked = true;
+          }
+
+          radio.onchange = () => {
+            state.Viol.violations[student.id] = optionText;
+          };
+
+          label.appendChild(radio);
+          label.append(' ' + optionText);
+          subList.appendChild(label);
+        });
+
+        title.onclick = () => {
+          subList.style.display = subList.style.display === 'none' ? 'block' : 'none';
+        };
+
+        container.appendChild(title);
+        container.appendChild(subList);
+      } else {
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'viol_' + student.id;
+        radio.value = main.title;
+        radio.style.marginLeft = '5px';
+
+        if (state.Viol.violations[student.id] === main.title) {
+          radio.checked = true;
+        }
+
+        radio.onchange = () => {
+          state.Viol.violations[student.id] = main.title;
+        };
+
+        title.onclick = () => {
+          radio.checked = true;
+          state.Viol.violations[student.id] = main.title;
+        };
+
+        container.appendChild(radio);
+        container.appendChild(title);
+      }
+
+      tdViolation.appendChild(container);
+    });
+
+    tr.appendChild(tdViolation);
+    tbody.appendChild(tr);
+  });
+}
+
+
+
+function exportData(type) {
+  const teacher = document.getElementById('teacherName' + (type === 'Abs' ? 'Abs' : 'Viol')).value.trim() || 'المعلم';
+  const grade = document.getElementById('gradeSelect' + type).value;
+  const section = document.getElementById('sectionSelect' + type).value;
+  const today = new Date().toLocaleDateString('ar-OM');
+
+  if (type === 'Abs') {
+    const absents = state.Abs.students.filter(s => state.Abs.attendance[s.id] === false);
+    if (!absents.length) return alert('لا يوجد غياب لتصديره.');
+    const rows = absents.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, message: `ولي أمر الطالب ${s.name}، نعلمكم بغياب ابنكم عن الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
+    sendData(rows, type);
+  } 
+  else if (type === 'Morning') {
+    const teacher = document.getElementById('teacherNameMorning').value.trim() || 'غير معروف';
+    const lateStudents = state.Morning.students.filter(s => state.Morning.status[s.id] === false);
+    if (!lateStudents.length) return alert('لا يوجد طلاب متأخرين.');
+    const rows = lateStudents.map((s, i) => ({
+      serial: i + 1,
+      phone: s.phone,
+      name: s.name,
+      message: `ولي أمر الطالب ${s.name}، نعلمكم بتأخر ابنكم عن الحضور للمدرسة صباحًا بتاريخ ${today}. —  المعلم : ${teacher}`
+    }));
+    sendData(rows, type);
+  }
+
+  else {
+    const viols = state.Viol.students.filter(s => state.Viol.violations[s.id] && state.Viol.violations[s.id] !== '');
+    if (!viols.length) return alert('لم يتم اختيار أي مخالفات.');
+    const rows = viols.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, violation: state.Viol.violations[s.id], message: `ولي أمر الطالب ${s.name}، تم تسجيل مخالفة: (${state.Viol.violations[s.id]}) في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
+    sendData(rows, type);
+  }
+}
+
+function todayISO() {
+  const d = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Muscat',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(d);
+
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${day}`;
+}
+
+function teacherInputId(type) {
+  return type === 'Abs' ? 'teacherNameAbs' :
+         type === 'Viol' ? 'teacherNameViol' :
+         'teacherNameMorning';
+}
+
+
+/* =========================================================
+   مطابقة أسماء السجلات مع اسم الطالب في PDF
+   المفتاح الأساسي: رقم الهاتف + الصف/الشعبة، ثم الرقم المدرسي إن توفر
+   ========================================================= */
+
+function getPDFStudentForRecord(record) {
+  const phone = normalizeDigits(record?.phone || '').replace(/\D/g, '');
+  const classParts = String(record?.className || '').split('/');
+  const grade = normalizeValue(classParts[0] || '');
+  const section = normalizeValue(classParts[1] || '');
+
+  if (!phone || !grade || !section) return null;
+
+  const key = studentListKey(grade, section);
+  const list = localStudentLists[key];
+
+  if (!list || !Array.isArray(list.students)) return null;
+
+  return list.students.find(s =>
+    normalizeDigits(s.phone || '').replace(/\D/g, '') === phone
+  ) || null;
+}
+
+function getCanonicalStudentName(record) {
+  const pdfStudent = getPDFStudentForRecord(record);
+  return pdfStudent?.name ? String(pdfStudent.name).trim() : String(record?.studentName || '').trim();
+}
+
+function canonicalizeRecordForPDF(record) {
+  const pdfStudent = getPDFStudentForRecord(record);
+  if (!pdfStudent) {
+    return {
+      ...record,
+      nameMatch: null,
+      pdfStudentName: ''
+    };
+  }
+
+  const currentName = String(record.studentName || '').trim();
+  const pdfName = String(pdfStudent.name || '').trim();
+
+  return {
+    ...record,
+    studentName: pdfName,
+    pdfStudentName: pdfName,
+    nameMatch: currentName === pdfName,
+    pdfSchoolId: pdfStudent.schoolId || '',
+    pdfSerial: pdfStudent.serial || ''
+  };
+}
+
+function canonicalizeRowsAgainstPDF(rows, type, grade, section) {
+  const key = studentListKey(grade, section);
+  const list = localStudentLists[key];
+
+  if (!list || !Array.isArray(list.students)) return rows;
+
+  const byPhone = new Map(
+    list.students.map(s => [
+      normalizeDigits(s.phone || '').replace(/\D/g, ''),
+      s
+    ])
+  );
+
+  return rows.map(r => {
+    const phone = normalizeDigits(r.phone || '').replace(/\D/g, '');
+    const pdfStudent = byPhone.get(phone);
+
+    if (!pdfStudent) return r;
+
+    return {
+      ...r,
+      name: String(pdfStudent.name || r.name || '').trim(),
+      schoolId: pdfStudent.schoolId || r.schoolId || '',
+      pdfSerial: pdfStudent.serial || r.pdfSerial || ''
+    };
+  });
+}
+
+function sendData(rows, type) {
+  const loadingSpan = document.getElementById('loading' + type);
+  const sendBtn = document.querySelector(`button[onclick="exportData('${type}')"]`);
+  const grade = document.getElementById('gradeSelect' + type).value.trim();
+  const section = document.getElementById('sectionSelect' + type).value.trim();
+  const teacher = document.getElementById(teacherInputId(type)).value.trim() || 'المعلم';
+
+  if (!grade || !section) {
+    showTeacherToast('⚠️ يرجى اختيار الصف والشعبة.', true);
+    return;
+  }
+
+  if (!rows || !rows.length) {
+    showTeacherToast('⚠️ لا توجد حالات لإرسالها.', true);
+    return;
+  }
+
+  // عند وجود قائمة PDF لنفس الصف والشعبة، يكون اسم PDF هو الاسم المعتمد للسجل.
+  const canonicalRows = canonicalizeRowsAgainstPDF(rows, type, grade, section);
+
+  const records = canonicalRows.map(r => ({
+    type: type,
+    studentName: r.name,
+    studentId: `${type}-${grade}-${section}-${r.phone || r.serial}`,
+    phone: r.phone || '',
+    className: `${grade}/${section}`,
+    teacher: teacher,
+    violation: type === 'Viol' ? (r.violation || '') : '',
+    date: todayISO(),
+    message: r.message || '',
+    pdfSchoolId: r.schoolId || '',
+    pdfSerial: r.pdfSerial || ''
+  }));
+
+  // استجابة فورية للمعلم بدون انتظار نافذة alert.
+  if (loadingSpan) {
+    loadingSpan.textContent = '⏳ جاري إرسال البيانات للإدارة...';
+    loadingSpan.style.display = 'inline';
+  }
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.dataset.originalText = sendBtn.textContent;
+    sendBtn.textContent = '⏳ جاري الإرسال...';
+    sendBtn.style.opacity = '0.65';
+  }
+
+  showTeacherToast('⏳ جاري إرسال البيانات للإدارة...');
+
+  fetch(ADMIN_WEBAPP_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'record',
+      pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
+      schoolName: schoolHasLinkContext() ? SCHOOL_REGISTERED_SETTINGS.name : (getSchoolSettings().name || DEFAULT_SCHOOL_NAME),
+      ...schoolRequestFields(),
+      records: records
+    }),
+    cache: 'no-store',
+    redirect: 'follow',
+    keepalive: true
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (!result.success) throw new Error(result.error || 'تعذر حفظ البيانات');
+
+    const added = Number(result.added || 0);
+    const skipped = Number(result.skipped || 0);
+
+    if (loadingSpan) {
+      loadingSpan.textContent = skipped
+        ? `✅ تم إرسال ${added} حالة للإدارة — مكرر: ${skipped}`
+        : `✅ تم إرسال ${added} حالة للإدارة`;
+    }
+
+    showTeacherToast(
+      skipped
+        ? `✅ تم إرسال ${added} حالة للإدارة — تم تجاهل ${skipped} حالة مكررة.`
+        : `✅ تم إرسال ${added} حالة للإدارة بنجاح.`
+    );
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = sendBtn.dataset.originalText || 'إرسال';
+      sendBtn.style.opacity = '1';
+    }
+
+    setTimeout(() => {
+      if (loadingSpan) {
+        loadingSpan.style.display = 'none';
+      }
+    }, 2500);
+
+    resetForm(type);
+  })
+  .catch(err => {
+    console.error(err);
+
+    if (loadingSpan) {
+      loadingSpan.textContent = '❌ تعذر إرسال البيانات للإدارة';
+    }
+
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.textContent = sendBtn.dataset.originalText || 'إرسال';
+      sendBtn.style.opacity = '1';
+    }
+
+    showTeacherToast('❌ فشل إرسال البيانات للإدارة: ' + err.message, true);
+  });
+}
+
+function showTeacherToast(message, isError = false) {
+  let toast = document.getElementById('teacherSendToast');
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'teacherSendToast';
+    toast.style.cssText = `
+      position:fixed;
+      top:20px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:99999;
+      min-width:280px;
+      max-width:90vw;
+      padding:14px 20px;
+      border-radius:12px;
+      color:#fff;
+      font-weight:bold;
+      text-align:center;
+      box-shadow:0 6px 20px rgba(0,0,0,.18);
+      font-size:17px;
+      transition:opacity .2s ease;
+    `;
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = isError ? '#dc2626' : '#0077b6';
+  toast.style.opacity = '1';
+
+  clearTimeout(window.__teacherToastTimer);
+  window.__teacherToastTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+  }, isError ? 5000 : 2500);
+}
+
+function renderMorningLate() {
+  const tbody = document.getElementById('studentsBodyMorning');
+  tbody.innerHTML = '';
+  state.Morning.students.forEach((student, index) => {
+    if (!(student.id in state.Morning.status)) state.Morning.status[student.id] = true;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${index + 1}</td><td>${student.name}</td>`;
+    const tdStatus = document.createElement('td');
+    const btn = document.createElement('button');
+    const early = state.Morning.status[student.id];
+    btn.textContent = early ? 'مبكر' : 'متأخر';
+    btn.className = early ? 'present' : 'absent';
+    btn.onclick = () => { state.Morning.status[student.id] = !early; renderMorningLate(); };
+    tdStatus.appendChild(btn);
+    tr.appendChild(tdStatus);
+    tbody.appendChild(tr);
+  });
+}
+
+
+function resetForm(type) {
+  // إفراغ الحقول
+  const nameInput = document.getElementById('teacherName' + type);
+  const gradeSelect = document.getElementById('gradeSelect' + type);
+  const sectionSelect = document.getElementById('sectionSelect' + type);
+  const tbodyId = type === 'Abs' ? 'studentsBodyAbs' : type === 'Viol' ? 'studentsBodyViol' : 'studentsBodyMorning';
+
+  if (nameInput) nameInput.value = '';
+  if (gradeSelect) gradeSelect.value = '';
+  if (sectionSelect) sectionSelect.innerHTML = '<option value="">اختر</option>';
+  const tbody = document.getElementById(tbodyId);
+  if (tbody) tbody.innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
+
+  // العودة للقائمة الرئيسية
+  showSection('mainMenu');
+}
+
+
+function noAbsentees() {
+  const teacher = document.getElementById('teacherNameAbs').value.trim();
+  const grade = document.getElementById('gradeSelectAbs').value.trim();
+  const section = document.getElementById('sectionSelectAbs').value.trim();
+
+  if (!teacher || !grade || !section) {
+    alert("يرجى إدخال اسم المعلم واختيار الصف والشعبة أولاً");
+    return;
+  }
+
+  fetch(ADMIN_WEBAPP_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({
+      action: 'record',
+      pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
+      schoolName: schoolHasLinkContext() ? SCHOOL_REGISTERED_SETTINGS.name : (getSchoolSettings().name || DEFAULT_SCHOOL_NAME),
+      ...schoolRequestFields(),
+      records: [{
+        type: 'Abs',
+        studentName: 'لا يوجد غياب',
+        studentId: `NOABS-${grade}-${section}-${todayISO()}`,
+        phone: '',
+        className: `${grade}/${section}`,
+        teacher: teacher,
+        violation: '',
+        date: todayISO(),
+        noAbsence: true,
+        message: `لا يوجد غياب في الصف ${grade}/${section} - المعلم: ${teacher}`
+      }]
+    })
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (!result.success) throw new Error(result.error || 'فشل الحفظ');
+    alert('✅ تم تسجيل «لا يوجد غياب» وحفظه في النظام.');
+    resetForm('Abs');
+  })
+  .catch(err => {
+    console.error(err);
+    alert('❌ فشل الحفظ: ' + err.message);
+  });
+}
+
+
+
+/* =========================================================
+   لوحة الإدارة
+   ========================================================= */
+
+let adminRecords = [];
+let adminCurrentType = 'Abs';
+let adminSelectedIds = new Set();
+let adminDashboardUnlocked = false;
+
+function openAdminDashboardLogin() {
+  showSection('adminDashboardSection');
+  document.getElementById('adminDashboardLogin').style.display = 'block';
+  document.getElementById('adminDashboardPanel').style.display = 'none';
+  document.getElementById('adminRecordsView').style.display = 'none';
+  document.getElementById('studentReportView').style.display = 'none';
+  document.getElementById('dashboardPin').value = '';
+  setTimeout(() => document.getElementById('dashboardPin').focus(), 100);
+}
+
+async function verifyDashboardPin() {
+  const pin = document.getElementById('dashboardPin').value.trim();
+
+  if (pin !== ADMIN_PIN) {
+    document.getElementById('dashboardPin').value = '';
+    alert('❌ الرقم السري غير صحيح');
+    return;
+  }
+
+  adminDashboardUnlocked = true;
+  document.getElementById('adminDashboardLogin').style.display = 'none';
+  document.getElementById('adminDashboardPanel').style.display = 'block';
+  document.getElementById('adminRecordsView').classList.remove('admin-open');
+  document.getElementById('adminRecordsView').style.display = 'none';
+  document.getElementById('studentReportView').style.display = 'none';
+
+  await loadAdminRecords();
+  updateWhatsAppQuota(SCHOOL_REGISTERED_SETTINGS);
+  renderStudentListsSummaryInline();
+}
+
+async function loadAdminRecords() {
+  if (!adminDashboardUnlocked) return;
+
+  const view = document.getElementById('adminRecordsViewList');
+  view.innerHTML = '<div style="padding:25px;text-align:center;">⏳ جاري تحميل المعطيات...</div>';
+
+  try {
+    const authQuery = schoolHasLinkContext()
+      ? `&school=${encodeURIComponent(SCHOOL_LINK_CONTEXT.schoolId)}&key=${encodeURIComponent(SCHOOL_LINK_CONTEXT.key)}`
+      : `&pin=${encodeURIComponent(ADMIN_PIN)}`;
+    const url = `${ADMIN_WEBAPP_URL}?action=records${authQuery}&_=${Date.now()}`;
+    const response = await fetch(url, {cache: 'no-store'});
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error || 'تعذر تحميل السجلات');
+    }
+
+    adminRecords = Array.isArray(result.records)
+      ? result.records.map(canonicalizeRecordForPDF)
+      : [];
+    adminSelectedIds = new Set();
+
+    renderAdminRecords();
+    updateAdminCardsCounts();
+
+  } catch (err) {
+    console.error(err);
+    view.innerHTML = `
+      <div style="padding:20px;color:#b91c1c;background:#fee2e2;border-radius:12px;">
+        ❌ تعذر تحميل البيانات.<br>${escapeHtml(err.message)}
+      </div>`;
+  }
+}
+
+function openAdminRecords(type) {
+  adminCurrentType = type;
+  document.getElementById('adminRecordsView').classList.add('admin-open');
+  document.getElementById('adminRecordsView').style.display = 'block';
+  document.getElementById('studentReportView').style.display = 'none';
+
+  const titles = {
+    Abs: '🟩 سجل الغياب',
+    Viol: '🟥 سجل السلوكيات والمخالفات',
+    Morning: '🔵 سجل التأخر الصباحي'
+  };
+
+  document.getElementById('adminRecordsTitle').textContent =
+    titles[type] || 'السجلات';
+
+  document.getElementById('adminSearch').value = '';
+  adminSelectedIds = new Set();
+  renderAdminRecords();
+}
+
+function updateAdminCardsCounts() {
+  const counts = {
+    Abs: adminRecords.filter(r => r.type === 'Abs').length,
+    Viol: adminRecords.filter(r => r.type === 'Viol').length,
+    Morning: adminRecords.filter(r => r.type === 'Morning').length
+  };
+
+  document.querySelector('.admin-card.abs').innerHTML =
+    `🟩<br>الغياب<br><small>${counts.Abs} حالة</small>`;
+  document.querySelector('.admin-card.viol').innerHTML =
+    `🟥<br>السلوكيات<br><small>${counts.Viol} حالة</small>`;
+  document.querySelector('.admin-card.morning').innerHTML =
+    `🔵<br>التأخر الصباحي<br><small>${counts.Morning} حالة</small>`;
+}
+
+function getVisibleAdminRecords() {
+  const q = (document.getElementById('adminSearch').value || '')
+    .trim()
+    .toLowerCase();
+
+  return adminRecords
+    .filter(r => r.type === adminCurrentType)
+    .filter(r => {
+      if (!q) return true;
+      const haystack = [
+        r.studentName,
+        r.studentId,
+        r.phone,
+        r.className,
+        r.teacher,
+        r.date,
+        r.violation
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    })
+    .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
+function renderAdminRecords() {
+  const box = document.getElementById('adminRecordsViewList');
+  const records = getVisibleAdminRecords();
+
+  if (!records.length) {
+    box.innerHTML = `
+      <div style="padding:25px;text-align:center;color:#64748b;">
+        لا توجد معطيات في هذا القسم.
+      </div>`;
+    return;
+  }
+
+  const rows = records.map((r, i) => {
+    const checked = adminSelectedIds.has(String(r.id)) ? 'checked' : '';
+    const sentText = r.sent
+      ? '<span class="status-sent">✅ تم الإرسال</span>'
+      : '<span class="status-pending">⏳ بانتظار الإرسال</span>';
+
+    const detail = r.type === 'Viol'
+      ? escapeHtml(r.violation || '—')
+      : r.type === 'Morning'
+        ? 'تأخر صباحي'
+        : (r.studentName === 'لا يوجد غياب' ? 'لا يوجد غياب' : 'غياب');
+
+    return `
+      <tr>
+        <td style="text-align:center;">
+          <input type="checkbox" ${checked}
+            onchange="toggleAdminRecord('${escapeJs(r.id)}', this.checked)">
+        </td>
+        <td>${i + 1}</td>
+        <td>
+          <button onclick="showStudentReport('${escapeJs(r.studentId)}')"
+            style="background:none;border:0;color:#075985;font-weight:bold;text-decoration:underline;">
+            ${escapeHtml(r.pdfStudentName || r.studentName || '—')}
+          </button>
           ${r.nameMatch === false
             ? '<div class="student-name-mismatch">⚠️ الاسم في السجل مختلف عن PDF — تم اعتماد اسم PDF</div>'
             : (r.pdfStudentName ? '<div class="student-name-match">✓ مطابق لقائمة PDF</div>' : '')}
@@ -2064,7 +2806,7 @@ function renderStudentListsSummaryInline() {
   });
 
   if (!keys.length) {
-    box.innerHTML = '';
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;text-align:center;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
     return;
   }
 
