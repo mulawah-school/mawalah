@@ -309,6 +309,7 @@ async function loadSchools(){
             <th class="p-4 font-bold">اسم المدرسة</th>
             <th class="p-4 font-bold">المعرف</th>
             <th class="p-4 font-bold">الحالة</th>
+            <th class="p-4 font-bold">الرسائل</th>
             <th class="p-4 font-bold text-center">الإجراءات</th>
           </tr>
         </thead>
@@ -322,6 +323,14 @@ async function loadSchools(){
                   <span class="w-1.5 h-1.5 rounded-full ${s.active ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
                   ${s.active ? 'مفعّل' : 'معطّل'}
                 </span>
+              </td>
+              <td class="p-4">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs font-bold text-slate-700">${Number(s.messageLimit||0)===0 ? 'غير محدود' : (Math.max(0,Number(s.messageLimit||0)-Number(s.messagesUsed||0))+' متبقية')}</span>
+                  <button onclick="setMessageLimit('${escapeJs(s.schoolId)}')" class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">
+                    <i class="fa-solid fa-sliders"></i> تحديد الرسائل
+                  </button>
+                </div>
               </td>
               <td class="p-4 text-center">
                 <div class="flex items-center justify-center gap-2">
@@ -382,6 +391,24 @@ async function editSchool(id){
   }catch(e){
     showModal('تعذر التعديل','❌ '+e.message,'fa-solid fa-circle-xmark text-rose-500');
   }
+}
+
+async function setMessageLimit(id){
+  const school=schoolsCache.find(x=>String(x.schoolId)===String(id));
+  if(!school)return;
+  const value=prompt('حدد الحد الأقصى لرسائل المدرسة.\nاكتب 0 لعدد غير محدود.\n\nالمستخدم حالياً: '+Number(school.messagesUsed||0),String(Number(school.messageLimit||0)));
+  if(value===null)return;
+  const limit=Number(value);
+  if(!Number.isInteger(limit)||limit<0){
+    showModal('قيمة غير صحيحة','أدخل رقمًا صحيحًا. اكتب 0 لعدد غير محدود.','fa-solid fa-triangle-exclamation text-amber-500');return;
+  }
+  try{
+    await apiPost({action:'ownerSetMessageLimit',pin,schoolId:id,limit});
+    await loadSchools();
+    showModal('تم تحديث رصيد الرسائل',
+      limit===0?'تم جعل رسائل المدرسة غير محدودة.':'تم تحديد الحد إلى '+limit+' رسالة، وسيُعطّل الرابط تلقائياً عند استهلاكها.',
+      'fa-solid fa-message text-indigo-500');
+  }catch(e){showModal('تعذر التحديث','❌ '+e.message,'fa-solid fa-circle-xmark text-rose-500');}
 }
 
 async function deleteSchool(id){
