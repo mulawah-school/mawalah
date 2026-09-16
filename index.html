@@ -132,6 +132,9 @@ input,select{border-radius:12px!important}
 .whatsapp-quota-card.danger .whatsapp-quota-title,.whatsapp-quota-card.danger .whatsapp-quota-number{color:#b91c1c}
 .whatsapp-quota-card.danger .whatsapp-quota-progress{background:#fee2e2}
 .whatsapp-quota-card.danger .whatsapp-quota-progress>div{background:#ef4444}
+
+.whatsapp-quota-card { display:block !important; visibility:visible !important; opacity:1 !important; }
+#teacherSendToast { visibility:visible !important; opacity:1 !important; }
 </style>
 <style>
 /* ===== محرر قوائم الطلاب ===== */
@@ -247,7 +250,7 @@ input,select{border-radius:12px!important}
 
       <div id="adminDashboardPanel" style="display:none;">
         
-        <div id="whatsappQuotaCard" class="whatsapp-quota-card" style="display:none;">
+        <div id="whatsappQuotaCard" class="whatsapp-quota-card" style="display:block !important;">
           <div class="whatsapp-quota-head">
             <div>
               <div class="whatsapp-quota-title">📱 رصيد رسائل WhatsApp</div>
@@ -671,7 +674,12 @@ function updateWhatsAppQuota(school) {
 
   // لا نعرض رقمًا غير حقيقي إذا لم يرسل السيرفر بيانات الرصيد.
   if (!hasRemaining && !hasLimit) {
-    card.style.display = 'none';
+    // تبقى البطاقة ثابتة حتى أثناء انتظار بيانات الرصيد، ولا تختفي.
+    card.style.display = 'block';
+    remainingEl.textContent = '—';
+    schoolEl.textContent = '🏫 ' + String(data.name || getSchoolSettings().name || DEFAULT_SCHOOL_NAME);
+    progressEl.style.width = '0%';
+    if (detailsEl) detailsEl.textContent = 'جاري تحميل رصيد الرسائل…';
     return;
   }
 
@@ -706,8 +714,12 @@ function updateWhatsAppQuota(school) {
     card.classList.add('warning');
   }
 
+  // البطاقة ثابتة ولا تختفي تلقائيًا.
   card.style.display = 'block';
+  card.style.visibility = 'visible';
+  card.style.opacity = '1';
 }
+
 
 function applySchoolSettings() {
   const settings = getSchoolSettings();
@@ -1800,7 +1812,8 @@ function showTeacherToast(message, isError = false) {
       text-align:center;
       box-shadow:0 6px 20px rgba(0,0,0,.18);
       font-size:17px;
-      transition:opacity .2s ease;
+      transition:none;
+      visibility:visible !important;
     `;
     document.body.appendChild(toast);
   }
@@ -1810,7 +1823,6 @@ function showTeacherToast(message, isError = false) {
   toast.style.opacity = '1';
 
   // الإشعار ثابت ولا يختفي تلقائيًا.
-  // يختفي فقط عند إنشاء إشعار جديد أو عند مغادرة الصفحة/القسم.
 }
 
 function renderMorningLate() {
