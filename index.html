@@ -2013,8 +2013,14 @@ function showTeacherToast(message, isError = false) {
   toast.textContent = message;
   toast.style.background = isError ? '#dc2626' : '#0077b6';
   toast.style.opacity = '1';
+  toast.style.visibility = 'visible';
 
-  // الإشعار ثابت ولا يختفي تلقائيًا.
+  // إخفاء إشعار الإرسال بعد ثانيتين فقط.
+  if (toast._hideTimer) clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.visibility = 'hidden';
+  }, 2000);
 }
 
 function renderMorningLate() {
