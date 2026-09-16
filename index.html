@@ -1950,11 +1950,10 @@ function sendData(rows, type) {
       sendBtn.style.opacity = '1';
     }
 
-    setTimeout(() => {
-      if (loadingSpan) {
-        loadingSpan.style.display = 'none';
-      }
-    }, 2500);
+    // تبقى رسالة نجاح الإرسال ظاهرة ولا تختفي تلقائيًا.
+    if (loadingSpan) {
+      loadingSpan.style.display = 'inline';
+    }
 
     resetForm(type);
   })
@@ -2128,6 +2127,7 @@ async function verifyDashboardPin() {
   document.getElementById('adminRecordsView').style.display = 'none';
   document.getElementById('studentReportView').style.display = 'none';
 
+  // بعد فتح الإدارة، اجلب سجلات هذه المدرسة نفسها فقط.
   await loadAdminRecords();
   // لا نعيد تصفير العداد عند فتح لوحة الإدارة.
   updateWhatsAppQuota(SCHOOL_REGISTERED_SETTINGS);
@@ -2142,7 +2142,9 @@ async function loadAdminRecords() {
 
   try {
     const authQuery = schoolHasLinkContext()
-      ? `&school=${encodeURIComponent(SCHOOL_LINK_CONTEXT.schoolId)}&key=${encodeURIComponent(SCHOOL_LINK_CONTEXT.key)}`
+      ? (SCHOOL_LINK_CONTEXT.code
+          ? `&schoolCode=${encodeURIComponent(SCHOOL_LINK_CONTEXT.code)}`
+          : `&school=${encodeURIComponent(SCHOOL_LINK_CONTEXT.schoolId)}&key=${encodeURIComponent(SCHOOL_LINK_CONTEXT.key)}`)
       : `&pin=${encodeURIComponent(ADMIN_PIN)}`;
     const url = `${ADMIN_WEBAPP_URL}?action=records${authQuery}&_=${Date.now()}`;
     const response = await fetch(url, {cache: 'no-store'});
