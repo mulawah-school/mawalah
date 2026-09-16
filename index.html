@@ -598,7 +598,10 @@ async function resolveSchoolLink() {
     // لا نعتمد اسمًا افتراضيًا ولا اسمًا محفوظًا من جهاز آخر.
     SCHOOL_REGISTERED_SETTINGS = {
       name: String(result.school.name || '').trim(),
-      logo: String(result.school.logo || '').trim()
+      logo: String(result.school.logo || '').trim(),
+      messageLimit: result.school.messageLimit,
+      messagesUsed: result.school.messagesUsed,
+      messagesRemaining: result.school.messagesRemaining
     };
 
     updateWhatsAppQuota(result.school);
@@ -757,20 +760,41 @@ function finishWhatsAppQuotaFromResult(result, pending) {
     WHATSAPP_QUOTA_STATE.timer = null;
   }
 
-  // النتيجة الفعلية من الخادم هي المرجع النهائي.
   const sent = Math.max(0, Number(result && result.sent) || 0);
+  const failed = Math.max(0, Number(result && result.failed) || 0);
 
+  // الرصيد النهائي = الرصيد قبل الإرسال - الرسائل التي أُرسلت بنجاح.
   if (Number.isFinite(WHATSAPP_QUOTA_STATE.remaining)) {
     WHATSAPP_QUOTA_STATE.remaining =
-      Math.max(0, WHATSAPP_QUOTA_STATE.remaining - Math.max(0, sent - Math.max(0, pending - sent)));
+      Math.max(0, WHATSAPP_QUOTA_STATE.remaining - sent);
+
+    if (Number.isFinite(WHATSAPP_QUOTA_STATE.used)) {
+      WHATSAPP_QUOTA_STATE.used += sent;
+    }
+  }
+
+  const remainingEl = document.getElementById('whatsappMessagesRemaining');
+  const progressEl = document.getElementById('whatsappQuotaProgress');
+  const detailsEl = document.getElementById('whatsappQuotaDetails');
+
+  if (remainingEl && Number.isFinite(WHATSAPP_QUOTA_STATE.remaining)) {
+    remainingEl.textContent =
+      WHATSAPP_QUOTA_STATE.remaining.toLocaleString('ar-OM');
+  }
+
+  if (progressEl && Number(WHATSAPP_QUOTA_STATE.limit) > 0) {
+    progressEl.style.width = Math.min(100, Math.max(0,
+      (WHATSAPP_QUOTA_STATE.remaining / WHATSAPP_QUOTA_STATE.limit) * 100
+    )) + '%';
+  }
+
+  if (detailsEl && Number(WHATSAPP_QUOTA_STATE.limit) > 0) {
+    detailsEl.textContent =
+      'المستخدم: ' + Math.max(0, WHATSAPP_QUOTA_STATE.used).toLocaleString('ar-OM') +
+      ' من ' + Number(WHATSAPP_QUOTA_STATE.limit).toLocaleString('ar-OM') + ' رسالة';
   }
 
   setWhatsAppQuotaSending(false, pending, sent);
-
-  // إعادة جلب الرصيد الفعلي مباشرة حتى لا يبقى الرقم التقديري.
-  try {
-    resolveSchoolContext().catch(() => {});
-  } catch(e) {}
 }
 
 function updateWhatsAppQuota(school) {
@@ -788,12 +812,32 @@ function updateWhatsAppQuota(school) {
 
   // لا نعرض رقمًا غير حقيقي إذا لم يرسل السيرفر بيانات الرصيد.
   if (!hasRemaining && !hasLimit) {
-    // تبقى البطاقة ثابتة حتى أثناء انتظار بيانات الرصيد، ولا تختفي.
+    // إذا كان لدينا رقم سابق، لا نستبدله أبدًا بـ "جاري التحميل".
+    // يبقى الرقم ظاهرًا أثناء أي تحديث أو إعادة فتح قسم الإدارة.
     card.style.display = 'block';
-    remainingEl.textContent = '—';
     schoolEl.textContent = '🏫 ' + String(data.name || getSchoolSettings().name || DEFAULT_SCHOOL_NAME);
-    progressEl.style.width = '0%';
-    if (detailsEl) detailsEl.textContent = 'جاري تحميل رصيد الرسائل…';
+
+    if (Number.isFinite(WHATSAPP_QUOTA_STATE.remaining)) {
+      remainingEl.textContent = WHATSAPP_QUOTA_STATE.remaining.toLocaleString('ar-OM');
+
+      const knownLimit = Number(WHATSAPP_QUOTA_STATE.limit) || 0;
+      const knownUsed = Number(WHATSAPP_QUOTA_STATE.used) || 0;
+
+      if (knownLimit > 0) {
+        progressEl.style.width = Math.min(100, Math.max(0,
+          (WHATSAPP_QUOTA_STATE.remaining / knownLimit) * 100
+        )) + '%';
+        if (detailsEl) {
+          detailsEl.textContent =
+            'المستخدم: ' + Math.max(0, knownUsed).toLocaleString('ar-OM') +
+            ' من ' + knownLimit.toLocaleString('ar-OM') + ' رسالة';
+        }
+      }
+    } else {
+      remainingEl.textContent = '—';
+      progressEl.style.width = '0%';
+      if (detailsEl) detailsEl.textContent = 'جاري تحميل رصيد الرسائل…';
+    }
     return;
   }
 
@@ -2062,6 +2106,7 @@ async function verifyDashboardPin() {
   document.getElementById('studentReportView').style.display = 'none';
 
   await loadAdminRecords();
+  // لا نعيد تصفير العداد عند فتح لوحة الإدارة.
   updateWhatsAppQuota(SCHOOL_REGISTERED_SETTINGS);
   renderStudentListsSummaryInline();
 }
@@ -2350,6 +2395,8 @@ async function selectAndSendAllPending() {
   }
 
   setAdminSendingUI(true, `⏳ جاري إرسال ${pending.length} رسالة إلى WhatsApp...`);
+  startWhatsAppQuotaLiveCountdown(pending.length);
+  setWhatsAppQuotaSending(true, pending.length, 0);
 
   try {
     const response = await fetch(ADMIN_WEBAPP_URL, {
@@ -2378,6 +2425,7 @@ async function selectAndSendAllPending() {
     alert(`📱 تم الإرسال: ${result.sent || 0}\n❌ فشل: ${result.failed || 0}`);
   } catch (err) {
     console.error(err);
+    setWhatsAppQuotaSending(false, pending.length, 0);
     setAdminSendingUI(false);
     alert('❌ فشل إرسال WhatsApp: ' + err.message);
   }
