@@ -1809,10 +1809,8 @@ function showTeacherToast(message, isError = false) {
   toast.style.background = isError ? '#dc2626' : '#0077b6';
   toast.style.opacity = '1';
 
-  clearTimeout(window.__teacherToastTimer);
-  window.__teacherToastTimer = setTimeout(() => {
-    toast.style.opacity = '0';
-  }, isError ? 5000 : 2500);
+  // الإشعار ثابت ولا يختفي تلقائيًا.
+  // يختفي فقط عند إنشاء إشعار جديد أو عند مغادرة الصفحة/القسم.
 }
 
 function renderMorningLate() {
