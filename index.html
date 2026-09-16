@@ -694,7 +694,8 @@ let WHATSAPP_QUOTA_STATE = {
   limit: null,
   used: null,
   timer: null,
-  target: null
+  target: null,
+  initialRemaining: null
 };
 
 function setWhatsAppQuotaSending(active, pending, sentNow = 0) {
@@ -726,6 +727,9 @@ function startWhatsAppQuotaLiveCountdown(pending) {
 
   const current = Number.isFinite(WHATSAPP_QUOTA_STATE.remaining)
     ? WHATSAPP_QUOTA_STATE.remaining : null;
+
+  // هذا هو الرصيد قبل بدء الإرسال، ويُستخدم لحساب الرصيد النهائي مرة واحدة فقط.
+  WHATSAPP_QUOTA_STATE.initialRemaining = current;
   const limit = Number.isFinite(WHATSAPP_QUOTA_STATE.limit)
     ? WHATSAPP_QUOTA_STATE.limit : null;
 
@@ -777,10 +781,12 @@ function finishWhatsAppQuotaFromResult(result, pending) {
   const sent = Math.max(0, Number(result && result.sent) || 0);
   const failed = Math.max(0, Number(result && result.failed) || 0);
 
-  // الرصيد النهائي = الرصيد قبل الإرسال - الرسائل التي أُرسلت بنجاح.
-  if (Number.isFinite(WHATSAPP_QUOTA_STATE.remaining)) {
+  // العد التنازلي سبق أن أنقص الرقم أثناء الإرسال.
+  // نثبت النتيجة النهائية اعتمادًا على الرصيد الحقيقي قبل الإرسال
+  // وعدد الرسائل التي نجحت فعليًا، حتى لا ينقص رقمين إضافيين.
+  if (Number.isFinite(WHATSAPP_QUOTA_STATE.initialRemaining)) {
     WHATSAPP_QUOTA_STATE.remaining =
-      Math.max(0, WHATSAPP_QUOTA_STATE.remaining - sent);
+      Math.max(0, WHATSAPP_QUOTA_STATE.initialRemaining - sent);
 
     if (Number.isFinite(WHATSAPP_QUOTA_STATE.used)) {
       WHATSAPP_QUOTA_STATE.used += sent;
@@ -1955,7 +1961,7 @@ function sendData(rows, type) {
       loadingSpan.style.display = 'inline';
       setTimeout(() => {
         loadingSpan.style.display = 'none';
-      }, 5000);
+      }, 1000);
     }
 
     resetForm(type);
