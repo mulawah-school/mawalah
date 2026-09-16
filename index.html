@@ -565,9 +565,17 @@ function schoolHasLinkContext() {
 }
 
 function schoolStorageKey(base) {
-  return schoolHasLinkContext()
-    ? `${base}__school_${SCHOOL_LINK_CONTEXT.schoolId}`
-    : base;
+  if (!schoolHasLinkContext()) return base;
+
+  // كل مدرسة لها مساحة تخزين مستقلة.
+  // عند استخدام الرابط المختصر (s=...) قد لا يكون schoolId موجودًا
+  // قبل الاتصال بالخادم، لذلك نستخدم الرمز مؤقتًا، ثم نستبدله
+  // بالـ schoolId الحقيقي بعد التحقق من المدرسة.
+  const schoolStorageId =
+    String(SCHOOL_LINK_CONTEXT.schoolId || '').trim() ||
+    String(SCHOOL_LINK_CONTEXT.code || '').trim();
+
+  return `${base}__school_${schoolStorageId}`;
 }
 
 async function resolveSchoolLink() {
@@ -590,6 +598,12 @@ async function resolveSchoolLink() {
 
     if (result.school.active !== true) {
       throw new Error('تم تعطيل رابط هذه المدرسة من لوحة المالك.');
+    }
+
+    // تثبيت المعرّف الحقيقي للمدرسة حتى تصبح localStorage منفصلة
+    // فعليًا لكل مدرسة، حتى عند استخدام الرابط المختصر s=...
+    if (result.school && result.school.schoolId) {
+      SCHOOL_LINK_CONTEXT.schoolId = String(result.school.schoolId).trim();
     }
 
     SCHOOL_CONTEXT_READY = true;
@@ -1013,14 +1027,19 @@ function resetSchoolSettings() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   applySchoolSettings();
+
   if (schoolHasLinkContext()) {
     try {
+      // مهم: نتحقق من المدرسة أولًا، ثم نحمّل القوائم من مساحة التخزين الخاصة بها.
       await resolveSchoolLink();
       applySchoolSettings();
+      loadLocalStudentLists();
     } catch (e) {
       console.error(e);
       return;
     }
+  } else {
+    loadLocalStudentLists();
   }
 });
 
@@ -1266,7 +1285,11 @@ function verifyStudentListPin() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadLocalStudentLists();
+  // عند وجود رابط مدرسة، يتم تحميل القوائم بعد resolveSchoolLink()
+  // حتى لا تقرأ قوائم مدرسة أخرى من مفتاح التخزين المشترك.
+  if (!schoolHasLinkContext()) {
+    loadLocalStudentLists();
+  }
   renderStudentListsSummaryInline();
 
   const pinInput = document.getElementById('adminPin');
