@@ -1950,9 +1950,12 @@ function sendData(rows, type) {
       sendBtn.style.opacity = '1';
     }
 
-    // تبقى رسالة نجاح الإرسال ظاهرة ولا تختفي تلقائيًا.
+    // رسالة النجاح تظهر ثم تعود الواجهة للوضع الطبيعي، دون أن تبقى معلقة.
     if (loadingSpan) {
       loadingSpan.style.display = 'inline';
+      setTimeout(() => {
+        loadingSpan.style.display = 'none';
+      }, 5000);
     }
 
     resetForm(type);
