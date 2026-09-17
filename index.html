@@ -179,6 +179,13 @@ input,select{border-radius:12px!important}
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style id="schoolLinkGateStyle">
+html.school-link-locked body > *:not(#schoolLinkGate){
+  visibility:hidden !important;
+}
+html.school-link-locked #schoolLinkGate{
+  visibility:visible !important;
+  display:flex !important;
+}
 #schoolLinkGate{
   position:fixed;inset:0;z-index:2147483647;
   display:none;align-items:center;justify-content:center;
@@ -194,19 +201,36 @@ input,select{border-radius:12px!important}
 #schoolLinkGate h2{color:#b91c1c;margin:10px 0}
 #schoolLinkGate p{color:#475569;line-height:1.9}
 #schoolLinkGate.checking h2{color:#0f766e}
-#schoolLinkGate.checking .gate-icon{font-size:48px}
-body.school-link-checking > *:not(#schoolLinkGate){visibility:hidden!important}
 </style>
+
+<script id="schoolLinkPrePaintGate">
+(function(){
+  try{
+    const p=new URLSearchParams(location.search);
+    const hasSchoolLink=!!(
+      String(p.get('s')||'').trim() ||
+      (String(p.get('school')||'').trim() && String(p.get('key')||'').trim())
+    );
+    if(hasSchoolLink){
+      document.documentElement.classList.add('school-link-locked');
+    }
+  }catch(e){}
+})();
+</script>
+
 </head>
 
-<div id="schoolLinkGate">
+<body>
+
+<div id="schoolLinkGate" class="checking">
   <div class="gate-card">
     <div class="gate-icon" id="schoolLinkGateIcon">⏳</div>
     <h2 id="schoolLinkGateTitle">جاري التحقق من رابط المدرسة...</h2>
     <p id="schoolLinkGateMessage">يرجى الانتظار لحظات.</p>
   </div>
 </div>
-<body>
+
+
   <!-- الصفحة الرئيسية -->
   <div id="mainMenu" class="menu-container">
     <div id="schoolIdentityHeader" style="
@@ -637,6 +661,7 @@ async function resolveSchoolLink() {
     SCHOOL_CONTEXT_READY = true;
 
     // تم التحقق من الرابط وأن المدرسة مفعلة: أخفِ بوابة التحقق وأظهر التطبيق.
+    document.documentElement.classList.remove('school-link-locked');
     document.documentElement.classList.remove('school-link-checking');
     document.body.classList.remove('school-link-checking');
     const schoolGate = document.getElementById('schoolLinkGate');
@@ -676,7 +701,7 @@ function showSchoolLinkBlocked(message) {
   const msg = document.getElementById('schoolLinkGateMessage');
 
   document.documentElement.classList.remove('school-link-checking');
-  document.body.classList.add('school-link-checking');
+  document.documentElement.classList.add('school-link-locked');
 
   if (gate) gate.style.display = 'flex';
   if (gate) gate.classList.remove('checking');
