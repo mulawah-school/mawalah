@@ -2050,6 +2050,9 @@ function sendData(rows, type) {
 }
 
 function showTeacherToast(message, isError = false) {
+  // إلغاء إشعارات النجاح؛ تبقى رسائل الخطأ فقط.
+  if (!isError) return;
+
   let toast = document.getElementById('teacherSendToast');
 
   if (!toast) {
