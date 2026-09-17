@@ -177,7 +177,35 @@ input,select{border-radius:12px!important}
 </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style id="schoolLinkGateStyle">
+#schoolLinkGate{
+  position:fixed;inset:0;z-index:2147483647;
+  display:none;align-items:center;justify-content:center;
+  padding:25px;box-sizing:border-box;
+  background:linear-gradient(135deg,#eff6ff,#ffffff);
+  font-family:Arial,sans-serif;
+}
+#schoolLinkGate .gate-card{
+  max-width:520px;width:100%;background:#fff;border-radius:22px;
+  padding:35px;text-align:center;box-shadow:0 15px 45px rgba(0,0,0,.12);
+}
+#schoolLinkGate .gate-icon{font-size:64px}
+#schoolLinkGate h2{color:#b91c1c;margin:10px 0}
+#schoolLinkGate p{color:#475569;line-height:1.9}
+#schoolLinkGate.checking h2{color:#0f766e}
+#schoolLinkGate.checking .gate-icon{font-size:48px}
+body.school-link-checking > *:not(#schoolLinkGate){visibility:hidden!important}
+</style>
 </head>
+
+<div id="schoolLinkGate">
+  <div class="gate-card">
+    <div class="gate-icon" id="schoolLinkGateIcon">⏳</div>
+    <h2 id="schoolLinkGateTitle">جاري التحقق من رابط المدرسة...</h2>
+    <p id="schoolLinkGateMessage">يرجى الانتظار لحظات.</p>
+  </div>
+</div>
 <body>
   <!-- الصفحة الرئيسية -->
   <div id="mainMenu" class="menu-container">
@@ -608,6 +636,12 @@ async function resolveSchoolLink() {
 
     SCHOOL_CONTEXT_READY = true;
 
+    // تم التحقق من الرابط وأن المدرسة مفعلة: أخفِ بوابة التحقق وأظهر التطبيق.
+    document.documentElement.classList.remove('school-link-checking');
+    document.body.classList.remove('school-link-checking');
+    const schoolGate = document.getElementById('schoolLinkGate');
+    if (schoolGate) schoolGate.style.display = 'none';
+
     // اسم المدرسة القادم من لوحة المالك هو الاسم الرسمي للرابط.
     // لا نعتمد اسمًا افتراضيًا ولا اسمًا محفوظًا من جهاز آخر.
     SCHOOL_REGISTERED_SETTINGS = {
@@ -636,18 +670,21 @@ async function resolveSchoolLink() {
 }
 
 function showSchoolLinkBlocked(message) {
-  document.body.innerHTML = `
-    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;
-      padding:25px;background:linear-gradient(135deg,#eff6ff,#fff);font-family:Arial,sans-serif">
-      <div style="max-width:520px;width:100%;background:#fff;border-radius:22px;padding:35px;
-        text-align:center;box-shadow:0 15px 45px rgba(0,0,0,.12)">
-        <div style="font-size:64px">🔒</div>
-        <h2 style="color:#b91c1c;margin:10px 0">رابط المدرسة غير متاح</h2>
-        <p style="color:#475569;line-height:1.9">${escapeHtml(String(message || 'تعذر التحقق من الرابط.'))}</p>
-        <p style="font-size:13px;color:#94a3b8">يرجى استخدام رابط المدرسة الصحيح.</p>
-      </div>
-    </div>`;
+  const gate = document.getElementById('schoolLinkGate');
+  const icon = document.getElementById('schoolLinkGateIcon');
+  const title = document.getElementById('schoolLinkGateTitle');
+  const msg = document.getElementById('schoolLinkGateMessage');
+
+  document.documentElement.classList.remove('school-link-checking');
+  document.body.classList.add('school-link-checking');
+
+  if (gate) gate.style.display = 'flex';
+  if (gate) gate.classList.remove('checking');
+  if (icon) icon.textContent = '🔒';
+  if (title) title.textContent = 'رابط المدرسة غير متاح';
+  if (msg) msg.textContent = String(message || 'تعذر التحقق من الرابط.');
 }
+
 
 function schoolRequestFields() {
   if (!schoolHasLinkContext()) return {};
@@ -773,6 +810,10 @@ function startWhatsAppQuotaLiveCountdown(pending) {
 }
 
 function finishWhatsAppQuotaFromResult(result, pending) {
+  if (result && Number(result.messagesRemaining) === 0) {
+    showSchoolLinkBlocked('انتهى رصيد رسائل WhatsApp لهذه المدرسة، وتم تعطيل الرابط تلقائيًا.');
+    return;
+  }
   if (WHATSAPP_QUOTA_STATE.timer) {
     clearInterval(WHATSAPP_QUOTA_STATE.timer);
     WHATSAPP_QUOTA_STATE.timer = null;
@@ -1877,12 +1918,12 @@ function sendData(rows, type) {
   const teacher = document.getElementById(teacherInputId(type)).value.trim() || 'المعلم';
 
   if (!grade || !section) {
-    showTeacherToast_DISABLED('⚠️ يرجى اختيار الصف والشعبة.', true);
+    showTeacherToast('⚠️ يرجى اختيار الصف والشعبة.', true);
     return;
   }
 
   if (!rows || !rows.length) {
-    showTeacherToast_DISABLED('⚠️ لا توجد حالات لإرسالها.', true);
+    showTeacherToast('⚠️ لا توجد حالات لإرسالها.', true);
     return;
   }
 
@@ -1915,7 +1956,7 @@ function sendData(rows, type) {
     sendBtn.style.opacity = '0.65';
   }
 
-  showTeacherToast_DISABLED('⏳ جاري إرسال البيانات للإدارة...');
+  showTeacherToast('⏳ جاري إرسال البيانات للإدارة...');
 
   fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
@@ -1944,7 +1985,7 @@ function sendData(rows, type) {
         : `✅ تم إرسال ${added} حالة للإدارة`;
     }
 
-    showTeacherToast_DISABLED(
+    showTeacherToast(
       skipped
         ? `✅ تم إرسال ${added} حالة للإدارة — تم تجاهل ${skipped} حالة مكررة.`
         : `✅ تم إرسال ${added} حالة للإدارة بنجاح.`
@@ -1979,13 +2020,48 @@ function sendData(rows, type) {
       sendBtn.style.opacity = '1';
     }
 
-    showTeacherToast_DISABLED('❌ فشل إرسال البيانات للإدارة: ' + err.message, true);
+    showTeacherToast('❌ فشل إرسال البيانات للإدارة: ' + err.message, true);
   });
 }
 
-function showTeacherToast_DISABLED(message, type) {
-  // تم إلغاء إشعار الإرسال العلوي بناءً على طلب المستخدم.
-  return;
+function showTeacherToast(message, isError = false) {
+  let toast = document.getElementById('teacherSendToast');
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'teacherSendToast';
+    toast.style.cssText = `
+      position:fixed;
+      top:20px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:99999;
+      min-width:280px;
+      max-width:90vw;
+      padding:14px 20px;
+      border-radius:12px;
+      color:#fff;
+      font-weight:bold;
+      text-align:center;
+      box-shadow:0 6px 20px rgba(0,0,0,.18);
+      font-size:17px;
+      transition:none;
+      visibility:visible !important;
+    `;
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = isError ? '#dc2626' : '#0077b6';
+  toast.style.opacity = '1';
+  toast.style.visibility = 'visible';
+
+  // إخفاء إشعار الإرسال بعد ثانيتين فقط.
+  if (toast._hideTimer) clearTimeout(toast._hideTimer);
+  toast._hideTimer = setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.visibility = 'hidden';
+  }, 2000);
 }
 
 function renderMorningLate() {
