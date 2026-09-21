@@ -1147,6 +1147,38 @@ function normalizeValue(value) {
     .trim();
 }
 
+// تنظيف أسماء الطلبة المستخرجة من PDF مع الحفاظ على الكلمات،
+// ومعالجة الحروف العربية التي قد يفصلها PDF.js، خصوصًا الحروف المكررة
+// مثل: ه ل ا ل ← هلال ، و عبد ا ل ل ه ← عبدالله.
+function normalizeStudentName(value) {
+  let name = String(value || '')
+    .normalize('NFKC')
+    .replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, '')
+    .replace(/[ـ]/g, '')
+    .replace(/ﷲ/g, 'الله')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // دمج الحروف العربية المفردة المتتابعة التي ينتجها PDF.js أحيانًا
+  // كعناصر منفصلة داخل الاسم. نكرر العملية حتى لا تبقى سلاسل مفردة.
+  let previous;
+  do {
+    previous = name;
+    name = name.replace(/([ء-ي])\s+([ء-ي])(?=\s|$)/g, '$1$2');
+    name = name.replace(/(^|\s)([ء-ي])\s+([ء-ي])/g, '$1$2$3');
+  } while (name !== previous);
+
+  // حالات شائعة في أسماء الطلبة.
+  name = name
+    .replace(/\bعبد\s+الله\b/g, 'عبدالله')
+    .replace(/\bعبد\s+الرحمن\b/g, 'عبدالرحمن')
+    .replace(/\bعبد\s+الرحيم\b/g, 'عبدالرحيم')
+    .replace(/\bعبد\s+العزيز\b/g, 'عبدالعزيز')
+    .replace(/\bعبد\s+الملك\b/g, 'عبدالملك');
+
+  return name.trim();
+}
+
 const GRADE_NAMES = {
   '1': 'الأول',
   '2': 'الثاني',
@@ -1536,6 +1568,9 @@ async function extractStudentsFromPDF(file) {
       name = name
         .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
         .trim();
+
+      // إصلاح الأسماء العربية التي يفصل PDF.js حروفها، خصوصًا الحروف المكررة.
+      name = normalizeStudentName(name);
 
       if (!name || name.length < 3) continue;
 
