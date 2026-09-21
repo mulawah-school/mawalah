@@ -218,6 +218,49 @@ html.school-link-locked #schoolLinkGate{
 })();
 </script>
 
+
+<style id="globalArabicGradeSelectFix">
+/* إصلاح جذري لعرض أسماء الصفوف العربية في القوائم المنسدلة */
+select {
+  font-family: Tahoma, Arial, "Noto Sans Arabic", sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  word-spacing: 0 !important;
+  line-height: 1.8 !important;
+  font-stretch: normal !important;
+  font-variant: normal !important;
+  font-feature-settings: normal !important;
+  font-kerning: normal !important;
+  direction: rtl !important;
+  text-align: right !important;
+  unicode-bidi: plaintext !important;
+  writing-mode: horizontal-tb !important;
+  transform: none !important;
+}
+
+select option {
+  font-family: Tahoma, Arial, "Noto Sans Arabic", sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  word-spacing: 0 !important;
+  line-height: 1.8 !important;
+  direction: rtl !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+#gradeSelectAbs,
+#gradeSelectMorning,
+#gradeSelectViol,
+#studentEditorGrade {
+  min-width: 210px !important;
+  width: 210px !important;
+  box-sizing: border-box !important;
+}
+</style>
+
 </head>
 
 <body>
@@ -1147,69 +1190,6 @@ function normalizeValue(value) {
     .trim();
 }
 
-/* =========================================================
-   إصلاح أسماء الطلبة المستخرجة من PDF فقط
-   بعض ملفات PDF تقسم الاسم العربي إلى أحرف منفصلة:
-   ه ل ا ل  -> هلال
-   ع ب د ا ل ل ه -> عبدالله
-   ولا نغيّر الصف أو الشعبة أو بقية البيانات.
-   ========================================================= */
-function normalizeExtractedStudentName(value) {
-  let text = String(value || '')
-    .normalize('NFC')
-    .replace(/\uFEFF/g, '')
-    .replace(/\u0640/g, '')          // التطويل
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!text) return '';
-
-  const tokens = text.split(' ');
-  const arabicLetter = /^[\u0600-\u06FF]$/;
-  const out = [];
-  let singleRun = [];
-
-  const flushSingles = () => {
-    if (!singleRun.length) return;
-    out.push(singleRun.join(''));
-    singleRun = [];
-  };
-
-  for (const token of tokens) {
-    // إذا كان الجزء عبارة عن أحرف عربية مفردة، نعيد تجميعها ككلمة واحدة.
-    if (token.length === 1 && arabicLetter.test(token)) {
-      singleRun.push(token);
-    } else {
-      flushSingles();
-      out.push(token);
-    }
-  }
-  flushSingles();
-
-  text = out.join(' ').replace(/\s+/g, ' ').trim();
-
-  // حالات الأسماء المركبة الشائعة إذا فصلها PDF بين كلمتين.
-  text = text
-    .replace(/\bعبد\s+الله\b/g, 'عبدالله')
-    .replace(/\bعبد\s+الرحمن\b/g, 'عبدالرحمن')
-    .replace(/\bعبد\s+الرحيم\b/g, 'عبدالرحيم')
-    .replace(/\bعبد\s+العزيز\b/g, 'عبدالعزيز')
-    .replace(/\bعبد\s+الكريم\b/g, 'عبدالكريم')
-    .replace(/\bعبد\s+الملك\b/g, 'عبدالملك')
-    .replace(/\bعبد\s+اللطيف\b/g, 'عبداللطيف')
-    .replace(/\bعبد\s+المجيد\b/g, 'عبدالمجيد')
-    .replace(/\bعبد\s+السلام\b/g, 'عبدالسلام')
-    .replace(/\bعبد\s+الغني\b/g, 'عبدالغني')
-    .replace(/\bعبد\s+الرزاق\b/g, 'عبدالرزاق')
-    .replace(/\bعبد\s+الفتاح\b/g, 'عبدالفتاح')
-    .replace(/\bعبد\s+الهادي\b/g, 'عبدالهادي')
-    .replace(/\bعبد\s+الجليل\b/g, 'عبدالجليل')
-    .replace(/\bعبد\s+الحكيم\b/g, 'عبدالحكيم')
-    .replace(/\bعبد\s+الودود\b/g, 'عبدالودود');
-
-  return text;
-}
-
 const GRADE_NAMES = {
   '1': 'الأول',
   '2': 'الثاني',
@@ -1221,8 +1201,8 @@ const GRADE_NAMES = {
   '8': 'الثامن',
   '9': 'التاسع',
   '10': 'العاشر',
-  '11': 'الحاديعشر',
-  '12': 'الثانيعشر'
+  '11': 'الحادي عشر',
+  '12': 'الثاني عشر'
 };
 
 let localStudentLists = {};
@@ -1458,42 +1438,145 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+function normalizeArabicHeaderText(text) {
+  return normalizeDigits(String(text || ''))
+    .replace(/\uFEFF/g, '')
+    .replace(/\u200f|\u200e/g, '')
+    .replace(/[ًٌٍَُِّْـ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function extractGradeNumber(text) {
-  const t = normalizeDigits(text).replace(/\s+/g, '');
+  const original = normalizeArabicHeaderText(text);
+  const compact = original.replace(/\s+/g, '');
+
   const patterns = [
+    ['12', 'الثانيعشر'], ['11', 'الحاديعشر'],
+    ['10', 'العاشر'], ['9', 'التاسع'], ['8', 'الثامن'],
+    ['7', 'السابع'], ['6', 'السادس'], ['5', 'الخامس'],
+    ['4', 'الرابع'], ['3', 'الثالث'], ['2', 'الثاني'],
+    ['1', 'الأول'], ['1', 'الاول']
+  ];
+
+  for (const [num, word] of patterns) {
+    if (compact.includes(word)) return num;
+  }
+
+  let m = compact.match(/الصف[^0-9]{0,30}(1[0-2]|[1-9])/);
+  if (m) return normalizeDigits(m[1]);
+
+  m = original.match(/الصف[\s:：-]*(1[0-2]|[1-9])/);
+  return m ? normalizeDigits(m[1]) : '';
+}
+
+function extractSectionNumber(text) {
+  const t = normalizeArabicHeaderText(text);
+
+  const gradeWord =
+    '(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\\s*عشر|الحاديعشر|الثاني\\s*عشر|الثانيعشر)';
+
+  // 1 / الرابع : الصف
+  let m = t.match(new RegExp(
+    '(?:^|\\s)(\\d{1,2})\\s*\\/\\s*' + gradeWord + '\\s*:?\\s*الصف',
+    'i'
+  ));
+  if (m) return m[1];
+
+  // الصف الرابع : 1 /
+  m = t.match(new RegExp(
+    'الصف[^\\n0-9]{0,40}' + gradeWord + '[^\\n0-9]{0,20}(\\d{1,2})\\s*\\/',
+    'i'
+  ));
+  if (m) return m[1];
+
+  // 1 / الحادي عشر : الصف أو 1 / الحاديعشر : الصف
+  m = t.match(/(?:^|\s)(\d{1,2})\s*\/[\s\u00a0]*(?:الحادي\s*عشر|الحاديعشر|الثاني\s*عشر|الثانيعشر)\s*:?\s*الصف/i);
+  if (m) return m[1];
+
+  // 1 /2027/2026
+  const matches = [...t.matchAll(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/g)];
+  if (matches.length) return matches[0][1];
+
+  m = t.match(/الصف[^0-9]{0,80}(\d{1,2})\s*\//);
+  return m ? m[1] : '';
+}
+
+function extractGradeFromHeader(text) {
+  const t = normalizeArabicHeaderText(text);
+  const compact = t.replace(/\s+/g, '');
+
+  const map = [
     ['12', 'الثانيعشر'], ['11', 'الحاديعشر'], ['10', 'العاشر'],
     ['9', 'التاسع'], ['8', 'الثامن'], ['7', 'السابع'],
     ['6', 'السادس'], ['5', 'الخامس'], ['4', 'الرابع'],
     ['3', 'الثالث'], ['2', 'الثاني'], ['1', 'الأول'], ['1', 'الاول']
   ];
-  for (const [num, word] of patterns) {
-    if (t.includes(word)) return num;
+
+  for (const [num, word] of map) {
+    if (compact.includes(word)) return num;
   }
 
-  // صيغ رقمية مثل: الصف 4 أو الصف: ٤
-  const m = t.match(/الصف[^0-9]{0,20}([1-9]|1[0-2])/);
+  const m = compact.match(/الصف[^0-9]{0,30}(1[0-2]|[1-9])/);
   return m ? normalizeDigits(m[1]) : '';
 }
 
-function extractSectionNumber(text) {
-  const t = normalizeDigits(text);
+function repairExtractedArabicName(value) {
+  let name = normalizeArabicHeaderText(value);
 
-  // الصيغة الشائعة في ملفات الطلبة: 1 / الرابع : الصف
-  const wordGrade = '(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)';
-  let m = t.match(new RegExp('(?:^|\\s)(\\d{1,2})\\s*\\/\\s*' + wordGrade + '\s*:?\s*الصف', 'i'));
-  if (m) return m[1];
+  // توحيد المسافات والشرطات العربية.
+  name = name
+    .replace(/[ـ]/g, '')
+    .replace(/[ًٌٍَُِّْ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  // صيغة معكوسة: الصف الرابع : 1 / ...
-  m = t.match(new RegExp('الصف[^\\n0-9]{0,40}' + wordGrade + '[^\\n0-9]{0,20}(\\d{1,2})\\s*\\/', 'i'));
-  if (m) return m[1];
+  // PDF.js قد يعيد بعض الأسماء كحروف منفردة:
+  // ه ل ا ل  -> هلال
+  // ع ب د ا ل ل ه -> عبدالله
+  // نعيد تجميع الحروف المنفردة فقط، ولا نحذف المسافات بين الكلمات الطبيعية.
+  const arabicLetter = '[ء-ي]';
+  const parts = name.split(' ');
+  const rebuilt = [];
+  let run = '';
 
-  // الصيغة السابقة: 1 /2027/2026
-  const matches = [...t.matchAll(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/g)];
-  if (matches.length) return matches[0][1];
+  const flushRun = () => {
+    if (run) {
+      rebuilt.push(run);
+      run = '';
+    }
+  };
 
-  // بديل عام: الصف ... ثم رقم الشعبة قبل /
-  m = t.match(/الصف[^0-9]{0,60}(\d{1,2})\s*\//);
-  return m ? m[1] : '';
+  for (const part of parts) {
+    if (new RegExp('^' + arabicLetter + '$').test(part)) {
+      run += part;
+    } else {
+      flushRun();
+      rebuilt.push(part);
+    }
+  }
+  flushRun();
+
+  name = rebuilt.join(' ').replace(/\s+/g, ' ').trim();
+
+  // معالجة إضافية عندما يعيد PDF.js جزءًا من الكلمة في رمز من حرفين
+  // مثل "الر" ثم يكمل بقية الحروف منفردة: الر ح م ن -> الرحمن.
+  name = name.replace(/\b(ال[ء-ي])\s+((?:[ء-ي]\s+){1,}[ء-ي])\b/g, (_, prefix, tail) => {
+    return prefix + tail.replace(/\s+/g, '');
+  });
+
+  // معالجة شائعة لأسماء PDF التي تفصل "عبد" عن الاسم التالي.
+  name = name
+    .replace(/عبد\s+(الله|الرحمن|الرحيم|العزيز|اللطيف|الكريم|الملك|المجيد|السلام|الوهاب|الغفور|الرزاق|القادر|الفتاح|الحكيم|الهادي|الحميد|الودود)/g, 'عبد$1')
+    .replace(/أبو\s+(بكر|حفص|عبدالله|عبد الله)/g, 'أبو $1');
+
+  // إذا بقيت سلسلة حروف عربية منفردة داخل الاسم، نجمعها مرة أخرى.
+  name = name.replace(
+    new RegExp('(?:^|\\s)((?:' + arabicLetter + '\\s+){2,}' + arabicLetter + ')(?=\\s|$)', 'g'),
+    match => match.replace(/\s+/g, ' ')
+  );
+
+  return name.trim();
 }
 
 async function extractStudentsFromPDF(file) {
@@ -1553,21 +1636,13 @@ async function extractStudentsFromPDF(file) {
 
     const pageText = lines.join('\n');
 
-    if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
+    // استخراج الصف والشعبة من نفس رأس الكشف، مع دعم جميع الصفوف 1-12.
+    if (!detectedGrade) {
+      detectedGrade = extractGradeNumber(pageText) || extractGradeFromHeader(pageText);
+    }
 
     if (!detectedSection) {
-      // التقرير المعروض يكتبها بهذا الشكل تقريبًا:
-      // 2027/2026 : السنة الدراسية   1 /   الخامس : الصف
-      let m = normalizeDigits(pageText).match(
-        /(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/
-      );
-      if (!m) {
-        m = normalizeDigits(pageText).match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
-      }
-      if (!m) {
-        m = normalizeDigits(pageText).match(/(\d{1,2})\s*\/\s*20\d{2}/);
-      }
-      if (m) detectedSection = m[1];
+      detectedSection = extractSectionNumber(pageText);
     }
 
     // في هذا النوع من القوائم يكون ترتيب الصف:
@@ -1595,8 +1670,8 @@ async function extractStudentsFromPDF(file) {
         .slice(schoolIdIndex + schoolId.length, serialIndex)
         .trim();
 
-      // إصلاح الاسم فقط: إعادة تجميع الحروف العربية التي يفصلها PDF.
-      name = normalizeExtractedStudentName(name);
+      // تنظيف وإعادة بناء الاسم من استخراج PDF.
+      name = repairExtractedArabicName(name);
 
       // إزالة أي نصوص غير متوقعة من بداية الاسم إذا ظهرت في استخراج PDF.
       name = name
@@ -2842,19 +2917,20 @@ function exportAdminListPDF() {
 /* إصلاح عرض أسماء الصفوف العربية داخل القوائم المنسدلة */
 select,
 select option {
-  font-family: Arial, Tahoma, sans-serif !important;
-  font-size: 15px !important;
+  font-family: Tahoma, Arial, "Noto Sans Arabic", sans-serif !important;
+  font-size: 16px !important;
   font-weight: 400 !important;
-  letter-spacing: normal !important;
-  word-spacing: normal !important;
-  line-height: 1.5 !important;
+  letter-spacing: 0 !important;
+  word-spacing: 0 !important;
+  line-height: 1.7 !important;
   font-stretch: normal !important;
   font-variant: normal !important;
-  font-feature-settings: normal !important;
+  font-feature-settings: "liga" 1, "calt" 1 !important;
   font-kerning: normal !important;
   direction: rtl !important;
   text-align: right !important;
   white-space: nowrap !important;
+  unicode-bidi: plaintext !important;
 }
 
 #gradeSelectAbs,
