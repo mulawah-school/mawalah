@@ -1147,36 +1147,67 @@ function normalizeValue(value) {
     .trim();
 }
 
-// تنظيف أسماء الطلبة المستخرجة من PDF مع الحفاظ على الكلمات،
-// ومعالجة الحروف العربية التي قد يفصلها PDF.js، خصوصًا الحروف المكررة
-// مثل: ه ل ا ل ← هلال ، و عبد ا ل ل ه ← عبدالله.
-function normalizeStudentName(value) {
-  let name = String(value || '')
-    .normalize('NFKC')
-    .replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, '')
-    .replace(/[ـ]/g, '')
-    .replace(/ﷲ/g, 'الله')
+/* =========================================================
+   إصلاح أسماء الطلبة المستخرجة من PDF فقط
+   بعض ملفات PDF تقسم الاسم العربي إلى أحرف منفصلة:
+   ه ل ا ل  -> هلال
+   ع ب د ا ل ل ه -> عبدالله
+   ولا نغيّر الصف أو الشعبة أو بقية البيانات.
+   ========================================================= */
+function normalizeExtractedStudentName(value) {
+  let text = String(value || '')
+    .normalize('NFC')
+    .replace(/\uFEFF/g, '')
+    .replace(/\u0640/g, '')          // التطويل
     .replace(/\s+/g, ' ')
     .trim();
 
-  // دمج الحروف العربية المفردة المتتابعة التي ينتجها PDF.js أحيانًا
-  // كعناصر منفصلة داخل الاسم. نكرر العملية حتى لا تبقى سلاسل مفردة.
-  let previous;
-  do {
-    previous = name;
-    name = name.replace(/([ء-ي])\s+([ء-ي])(?=\s|$)/g, '$1$2');
-    name = name.replace(/(^|\s)([ء-ي])\s+([ء-ي])/g, '$1$2$3');
-  } while (name !== previous);
+  if (!text) return '';
 
-  // حالات شائعة في أسماء الطلبة.
-  name = name
+  const tokens = text.split(' ');
+  const arabicLetter = /^[\u0600-\u06FF]$/;
+  const out = [];
+  let singleRun = [];
+
+  const flushSingles = () => {
+    if (!singleRun.length) return;
+    out.push(singleRun.join(''));
+    singleRun = [];
+  };
+
+  for (const token of tokens) {
+    // إذا كان الجزء عبارة عن أحرف عربية مفردة، نعيد تجميعها ككلمة واحدة.
+    if (token.length === 1 && arabicLetter.test(token)) {
+      singleRun.push(token);
+    } else {
+      flushSingles();
+      out.push(token);
+    }
+  }
+  flushSingles();
+
+  text = out.join(' ').replace(/\s+/g, ' ').trim();
+
+  // حالات الأسماء المركبة الشائعة إذا فصلها PDF بين كلمتين.
+  text = text
     .replace(/\bعبد\s+الله\b/g, 'عبدالله')
     .replace(/\bعبد\s+الرحمن\b/g, 'عبدالرحمن')
     .replace(/\bعبد\s+الرحيم\b/g, 'عبدالرحيم')
     .replace(/\bعبد\s+العزيز\b/g, 'عبدالعزيز')
-    .replace(/\bعبد\s+الملك\b/g, 'عبدالملك');
+    .replace(/\bعبد\s+الكريم\b/g, 'عبدالكريم')
+    .replace(/\bعبد\s+الملك\b/g, 'عبدالملك')
+    .replace(/\bعبد\s+اللطيف\b/g, 'عبداللطيف')
+    .replace(/\bعبد\s+المجيد\b/g, 'عبدالمجيد')
+    .replace(/\bعبد\s+السلام\b/g, 'عبدالسلام')
+    .replace(/\bعبد\s+الغني\b/g, 'عبدالغني')
+    .replace(/\bعبد\s+الرزاق\b/g, 'عبدالرزاق')
+    .replace(/\bعبد\s+الفتاح\b/g, 'عبدالفتاح')
+    .replace(/\bعبد\s+الهادي\b/g, 'عبدالهادي')
+    .replace(/\bعبد\s+الجليل\b/g, 'عبدالجليل')
+    .replace(/\bعبد\s+الحكيم\b/g, 'عبدالحكيم')
+    .replace(/\bعبد\s+الودود\b/g, 'عبدالودود');
 
-  return name.trim();
+  return text;
 }
 
 const GRADE_NAMES = {
@@ -1564,13 +1595,13 @@ async function extractStudentsFromPDF(file) {
         .slice(schoolIdIndex + schoolId.length, serialIndex)
         .trim();
 
+      // إصلاح الاسم فقط: إعادة تجميع الحروف العربية التي يفصلها PDF.
+      name = normalizeExtractedStudentName(name);
+
       // إزالة أي نصوص غير متوقعة من بداية الاسم إذا ظهرت في استخراج PDF.
       name = name
         .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
         .trim();
-
-      // إصلاح الأسماء العربية التي يفصل PDF.js حروفها، خصوصًا الحروف المكررة.
-      name = normalizeStudentName(name);
 
       if (!name || name.length < 3) continue;
 
