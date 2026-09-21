@@ -1158,8 +1158,8 @@ const GRADE_NAMES = {
   '8': 'الثامن',
   '9': 'التاسع',
   '10': 'العاشر',
-  '11': 'الحاديعشر',
-  '12': 'الثانيعشر'
+  '11': 'الحادي عشر',
+  '12': 'الثاني عشر'
 };
 
 let localStudentLists = {};
@@ -1205,20 +1205,36 @@ function getImportedSections(grade) {
 
 function fillGradeSelect(select, includeLabel = 'اختر') {
   if (!select) return;
-  const current = select.value;
+
+  const current = normalizeValue(select.value);
   const grades = getImportedGrades();
+
   select.innerHTML = '';
+
   const placeholder = document.createElement('option');
   placeholder.value = '';
   placeholder.textContent = includeLabel;
   select.appendChild(placeholder);
+
   grades.forEach(grade => {
+    const g = normalizeDigits(String(grade)).trim();
     const opt = document.createElement('option');
-    opt.value = grade;
-    opt.textContent = 'الصف ' + GRADE_NAMES[grade];
+
+    // القيمة الرقمية هي المفتاح الوحيد للصف.
+    // النص المعروض مستقل تمامًا عن الصف الآخر.
+    opt.value = g;
+    opt.textContent = 'الصف ' + (
+      g === '11' ? 'الحادي عشر' :
+      g === '12' ? 'الثاني عشر' :
+      (GRADE_NAMES[g] || '')
+    );
+
     select.appendChild(opt);
   });
-  if (grades.includes(current)) select.value = current;
+
+  if (grades.includes(current)) {
+    select.value = current;
+  }
 }
 
 function refreshGradeSelectors() {
@@ -1396,19 +1412,37 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function extractGradeNumber(text) {
-  const t = normalizeDigits(text).replace(/\s+/g, '');
-  const patterns = [
-    ['12', 'الثانيعشر'], ['11', 'الحاديعشر'], ['10', 'العاشر'],
-    ['9', 'التاسع'], ['8', 'الثامن'], ['7', 'السابع'],
-    ['6', 'السادس'], ['5', 'الخامس'], ['4', 'الرابع'],
-    ['3', 'الثالث'], ['2', 'الثاني'], ['1', 'الأول'], ['1', 'الاول']
+  const raw = normalizeDigits(text)
+    .replace(/\uFEFF/g, '')
+    .replace(/[ـ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // نبحث أولًا عن اسم الصف بعد كلمة "الصف"، وبترتيب 12 ثم 11
+  // حتى لا يُفسَّر "الثاني عشر" أو "الحادي عشر" على أنه صف آخر.
+  const namedGrades = [
+    ['12', /الصف\s*[:：-]?\s*الثاني\s+عشر/i],
+    ['12', /الصف\s*[:：-]?\s*الثانيعشر/i],
+    ['11', /الصف\s*[:：-]?\s*الحادي\s+عشر/i],
+    ['11', /الصف\s*[:：-]?\s*الحاديعشر/i],
+    ['10', /الصف\s*[:：-]?\s*العاشر/i],
+    ['9', /الصف\s*[:：-]?\s*التاسع/i],
+    ['8', /الصف\s*[:：-]?\s*الثامن/i],
+    ['7', /الصف\s*[:：-]?\s*السابع/i],
+    ['6', /الصف\s*[:：-]?\s*السادس/i],
+    ['5', /الصف\s*[:：-]?\s*الخامس/i],
+    ['4', /الصف\s*[:：-]?\s*الرابع/i],
+    ['3', /الصف\s*[:：-]?\s*الثالث/i],
+    ['2', /الصف\s*[:：-]?\s*الثاني/i],
+    ['1', /الصف\s*[:：-]?\s*(?:الأول|الاول)/i]
   ];
-  for (const [num, word] of patterns) {
-    if (t.includes(word)) return num;
+
+  for (const [num, pattern] of namedGrades) {
+    if (pattern.test(raw)) return num;
   }
 
-  // صيغ رقمية مثل: الصف 4 أو الصف: ٤
-  const m = t.match(/الصف[^0-9]{0,20}([1-9]|1[0-2])/);
+  // صيغ رقمية مثل: الصف 11 أو الصف: ١٢
+  const m = raw.match(/الصف\s*[:：-]?\s*(1[0-2]|[1-9])\b/i);
   return m ? normalizeDigits(m[1]) : '';
 }
 
@@ -1416,7 +1450,7 @@ function extractSectionNumber(text) {
   const t = normalizeDigits(text);
 
   // الصيغة الشائعة في ملفات الطلبة: 1 / الرابع : الصف
-  const wordGrade = '(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)';
+  const wordGrade = '(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\\s*عشر|الحاديعشر|الثاني\\s*عشر|الثانيعشر)';
   let m = t.match(new RegExp('(?:^|\\s)(\\d{1,2})\\s*\\/\\s*' + wordGrade + '\s*:?\s*الصف', 'i'));
   if (m) return m[1];
 
@@ -1496,7 +1530,7 @@ async function extractStudentsFromPDF(file) {
       // التقرير المعروض يكتبها بهذا الشكل تقريبًا:
       // 2027/2026 : السنة الدراسية   1 /   الخامس : الصف
       let m = normalizeDigits(pageText).match(
-        /(\d{1,2})\s*\/\s*(?:الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)\s*:\s*الصف/
+        /(\d{1,2})\s*\/\s*(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الحاديعشر|الثاني\s*عشر|الثانيعشر)\s*:\s*الصف/
       );
       if (!m) {
         m = normalizeDigits(pageText).match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
@@ -2798,6 +2832,21 @@ select option {
   min-width: 190px !important;
   width: auto !important;
   max-width: 100% !important;
+}
+/* فصل بصري واضح للصفين الحادي عشر والثاني عشر */
+#gradeSelectAbs option[value="11"],
+#gradeSelectMorning option[value="11"],
+#gradeSelectViol option[value="11"],
+#studentEditorGrade option[value="11"] {
+  letter-spacing: normal !important;
+  word-spacing: 2px !important;
+}
+#gradeSelectAbs option[value="12"],
+#gradeSelectMorning option[value="12"],
+#gradeSelectViol option[value="12"],
+#studentEditorGrade option[value="12"] {
+  letter-spacing: normal !important;
+  word-spacing: 2px !important;
 }
 </style>
     </head>
