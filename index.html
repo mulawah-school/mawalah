@@ -407,8 +407,8 @@ html.school-link-locked #schoolLinkGate{
               <option value="8">الصف الثامن</option>
               <option value="9">الصف التاسع</option>
               <option value="10">الصف العاشر</option>
-              <option value="11">الصف الحادي عشر</option>
-              <option value="12">الصف الثاني عشر</option>
+              <option value="11">الصف الحادي عشر</option>
+              <option value="12">الصف الثاني عشر</option>
             </select>
             <select id="studentEditorSection" onchange="renderStudentEditor()">
               <option value="">اختر الشعبة</option>
@@ -1224,8 +1224,8 @@ function fillGradeSelect(select, includeLabel = 'اختر') {
     // النص المعروض مستقل تمامًا عن الصف الآخر.
     opt.value = g;
     opt.textContent = 'الصف ' + (
-      g === '11' ? 'الحادي عشر' :
-      g === '12' ? 'الثاني عشر' :
+      g === '11' ? 'الحادي\u00A0عشر' :
+      g === '12' ? 'الثاني\u00A0عشر' :
       (GRADE_NAMES[g] || '')
     );
 
@@ -3257,6 +3257,23 @@ function toggleDesignerInfo() {
   info.style.display = info.style.display === 'none' ? 'block' : 'none';
 }
 
+<script id="grade1112FinalGuard">
+document.addEventListener('DOMContentLoaded', function () {
+  const labels = {
+    '11': 'الصف الحادي\u00A0عشر',
+    '12': 'الصف الثاني\u00A0عشر'
+  };
+
+  ['gradeSelectAbs','gradeSelectMorning','gradeSelectViol','studentEditorGrade'].forEach(function(id) {
+    const select = document.getElementById(id);
+    if (!select) return;
+
+    Array.from(select.options).forEach(function(option) {
+      const value = String(option.value || '').trim();
+      if (labels[value]) option.textContent = labels[value];
+    });
+  });
+});
 </script>
 <!-- معلومات المصمم -->
 <footer style="text-align: center; padding: 15px; background: #d9f0ff; color: #003f66; font-size: 14px;">
