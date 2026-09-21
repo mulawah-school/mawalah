@@ -1158,8 +1158,8 @@ const GRADE_NAMES = {
   '8': 'الثامن',
   '9': 'التاسع',
   '10': 'العاشر',
-  '11': 'الحادي عشر',
-  '12': 'الثاني عشر'
+  '11': 'الحاديعشر',
+  '12': 'الثانيعشر'
 };
 
 let localStudentLists = {};
@@ -1398,7 +1398,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function extractGradeNumber(text) {
   const t = normalizeDigits(text).replace(/\s+/g, '');
   const patterns = [
-    ['12', 'الثاني عشر'], ['11', 'الحادي عشر'], ['10', 'العاشر'],
+    ['12', 'الثانيعشر'], ['11', 'الحاديعشر'], ['10', 'العاشر'],
     ['9', 'التاسع'], ['8', 'الثامن'], ['7', 'السابع'],
     ['6', 'السادس'], ['5', 'الخامس'], ['4', 'الرابع'],
     ['3', 'الثالث'], ['2', 'الثاني'], ['1', 'الأول'], ['1', 'الاول']
@@ -2772,7 +2772,34 @@ function exportAdminListPDF() {
         table{width:100%;border-collapse:collapse;margin-top:20px}
         th,td{border:1px solid #999;padding:7px;text-align:right}
         th{background:#eee}
-      </style>
+      
+/* إصلاح عرض أسماء الصفوف العربية داخل القوائم المنسدلة */
+select,
+select option {
+  font-family: Arial, Tahoma, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 400 !important;
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  line-height: 1.5 !important;
+  font-stretch: normal !important;
+  font-variant: normal !important;
+  font-feature-settings: normal !important;
+  font-kerning: normal !important;
+  direction: rtl !important;
+  text-align: right !important;
+  white-space: nowrap !important;
+}
+
+#gradeSelectAbs,
+#gradeSelectMorning,
+#gradeSelectViol,
+#studentEditorGrade {
+  min-width: 190px !important;
+  width: auto !important;
+  max-width: 100% !important;
+}
+</style>
     </head>
     <body>
       <h2>${escapeHtml(getSchoolSettings().name || DEFAULT_SCHOOL_NAME)}</h2>
