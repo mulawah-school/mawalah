@@ -611,6 +611,31 @@ function schoolStorageKey(base) {
 }
 
 async function resolveSchoolLink() {
+  // عند فتح نسخة HTML مباشرة من الجهاز (file://)، لا يمكن للمتصفح
+  // الاعتماد على طلبات الشبكة بنفس طريقة GitHub Pages.
+  // لذلك نسمح بالمعاينة المحلية فقط، مع بقاء التحقق الكامل فعالًا
+  // عند التشغيل من GitHub Pages أو أي استضافة فعلية.
+  if (window.location.protocol === 'file:') {
+    SCHOOL_CONTEXT_READY = true;
+
+    const schoolGate = document.getElementById('schoolLinkGate');
+    if (schoolGate) schoolGate.style.display = 'none';
+    document.documentElement.classList.remove('school-link-locked');
+    document.documentElement.classList.remove('school-link-checking');
+    document.body.classList.remove('school-link-checking');
+
+    // لا نضع اسمًا أو بيانات مدرسة افتراضية من مدرسة أخرى.
+    SCHOOL_REGISTERED_SETTINGS = {
+      name: '',
+      logo: '',
+      messageLimit: null,
+      messagesUsed: null,
+      messagesRemaining: null
+    };
+
+    return {success: true, localPreview: true};
+  }
+
   if (!schoolHasLinkContext()) {
     SCHOOL_CONTEXT_READY = true;
     return {success: true, legacy: true};
