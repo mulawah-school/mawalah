@@ -397,6 +397,10 @@ html.school-link-locked #schoolLinkGate{
           <div class="student-editor-filters">
             <select id="studentEditorGrade" onchange="updateStudentEditorSections()">
               <option value="">اختر الصف</option>
+              <option value="1">الصف الأول</option>
+              <option value="2">الصف الثاني</option>
+              <option value="3">الصف الثالث</option>
+              <option value="4">الصف الرابع</option>
               <option value="5">الصف الخامس</option>
               <option value="6">الصف السادس</option>
               <option value="7">الصف السابع</option>
@@ -487,15 +491,7 @@ html.school-link-locked #schoolLinkGate{
         <label>اسم المعلم: <input id="teacherNameAbs" placeholder="اكتب اسم المعلم" type="text"/></label>
         <label>الصف:
           <select id="gradeSelectAbs" onchange="updateSections('Abs')">
-            <option value="">اختر</option>
-            <option value="5">الصف الخامس</option>
-            <option value="6">الصف السادس</option>
-            <option value="7">الصف السابع</option>
-            <option value="8">الصف الثامن</option>
-            <option value="9">الصف التاسع</option>
-            <option value="10">الصف العاشر</option>
-            <option value="11">الصف الحادي عشر</option>
-            <option value="12">الصف الثاني عشر</option>
+            <option value="">اختر الصف</option>
           </select>
         </label>
         <label>الشعبة:
@@ -525,15 +521,7 @@ html.school-link-locked #schoolLinkGate{
         <label>اسم المعلم: <input id="teacherNameMorning" placeholder="اكتب اسم المعلم" type="text"/></label>
         <label>الصف:
           <select id="gradeSelectMorning" onchange="updateSections('Morning')">
-            <option value="">اختر</option>
-            <option value="5">الصف الخامس</option>
-            <option value="6">الصف السادس</option>
-            <option value="7">الصف السابع</option>
-            <option value="8">الصف الثامن</option>
-            <option value="9">الصف التاسع</option>
-            <option value="10">الصف العاشر</option>
-            <option value="11">الصف الحادي عشر</option>
-            <option value="12">الصف الثاني عشر</option>
+            <option value="">اختر الصف</option>
           </select>
         </label>
         <label>الشعبة:
@@ -561,15 +549,7 @@ html.school-link-locked #schoolLinkGate{
         <label>اسم المعلم: <input id="teacherNameViol" placeholder="اكتب اسم المعلم" type="text"/></label>
         <label>الصف:
           <select id="gradeSelectViol" onchange="updateSections('Viol')">
-            <option value="">اختر</option>
-            <option value="5">الصف الخامس</option>
-            <option value="6">الصف السادس</option>
-            <option value="7">الصف السابع</option>
-            <option value="8">الصف الثامن</option>
-            <option value="9">الصف التاسع</option>
-            <option value="10">الصف العاشر</option>
-            <option value="11">الصف الحادي عشر</option>
-            <option value="12">الصف الثاني عشر</option>
+            <option value="">اختر الصف</option>
           </select>
         </label>
         <label>الشعبة:
@@ -1168,6 +1148,10 @@ function normalizeValue(value) {
 }
 
 const GRADE_NAMES = {
+  '1': 'الأول',
+  '2': 'الثاني',
+  '3': 'الثالث',
+  '4': 'الرابع',
   '5': 'الخامس',
   '6': 'السادس',
   '7': 'السابع',
@@ -1187,6 +1171,7 @@ function studentListKey(grade, section) {
 
 function saveLocalStudentLists() {
   localStorage.setItem(schoolStorageKey('mawalah_student_lists_v2'), JSON.stringify(localStudentLists));
+  refreshGradeSelectors();
 }
 
 function loadLocalStudentLists() {
@@ -1197,7 +1182,16 @@ function loadLocalStudentLists() {
     console.error('تعذر قراءة القوائم المحفوظة', e);
     localStudentLists = {};
   }
+  refreshGradeSelectors();
   renderStudentListsSummary();
+}
+
+function getImportedGrades() {
+  return Object.keys(localStudentLists)
+    .map(k => String(k).split('_')[0])
+    .filter(g => GRADE_NAMES[g])
+    .filter((g, i, arr) => arr.indexOf(g) === i)
+    .sort((a,b) => Number(a) - Number(b));
 }
 
 function getImportedSections(grade) {
@@ -1209,22 +1203,45 @@ function getImportedSections(grade) {
     .sort((a,b) => Number(a)-Number(b));
 }
 
+function fillGradeSelect(select, includeLabel = 'اختر') {
+  if (!select) return;
+  const current = select.value;
+  const grades = getImportedGrades();
+  select.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = includeLabel;
+  select.appendChild(placeholder);
+  grades.forEach(grade => {
+    const opt = document.createElement('option');
+    opt.value = grade;
+    opt.textContent = 'الصف ' + GRADE_NAMES[grade];
+    select.appendChild(opt);
+  });
+  if (grades.includes(current)) select.value = current;
+}
+
+function refreshGradeSelectors() {
+  ['Abs','Morning','Viol'].forEach(type => {
+    const gradeSelect = document.getElementById('gradeSelect' + type);
+    const sectionSelect = document.getElementById('sectionSelect' + type);
+    fillGradeSelect(gradeSelect, 'اختر الصف');
+    if (sectionSelect) {
+      sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
+    }
+  });
+  const editorGrade = document.getElementById('studentEditorGrade');
+  if (editorGrade) fillGradeSelect(editorGrade, 'اختر الصف');
+}
+
 function updateSections(type) {
   const grade = document.getElementById('gradeSelect' + type).value;
   const sectionSelect = document.getElementById('sectionSelect' + type);
-  sectionSelect.innerHTML = '<option value="">اختر</option>';
+  sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
 
-  let sections = getImportedSections(grade);
-
-  // في حال لم توجد قوائم PDF لهذا الصف، نُبقي التقسيم القديم كخيار احتياطي.
-  if (!sections.length) {
-    let count = 3;
-    if (grade === '10') count = 4;
-    else if (grade === '11') count = 6;
-    else if (grade === '12') count = 5;
-    sections = Array.from({length: count}, (_, i) => String(i + 1));
-  }
-
+  // لا توجد شعب افتراضية: تظهر فقط الشعب التي تم استيراد قوائمها لهذه المدرسة.
+  if (!grade) return;
+  const sections = getImportedSections(grade);
   sections.forEach(section => {
     const opt = document.createElement('option');
     opt.value = section;
@@ -1383,25 +1400,37 @@ function extractGradeNumber(text) {
   const patterns = [
     ['12', 'الثانيعشر'], ['11', 'الحاديعشر'], ['10', 'العاشر'],
     ['9', 'التاسع'], ['8', 'الثامن'], ['7', 'السابع'],
-    ['6', 'السادس'], ['5', 'الخامس']
+    ['6', 'السادس'], ['5', 'الخامس'], ['4', 'الرابع'],
+    ['3', 'الثالث'], ['2', 'الثاني'], ['1', 'الأول'], ['1', 'الاول']
   ];
   for (const [num, word] of patterns) {
     if (t.includes(word)) return num;
   }
 
-  const m = t.match(/الصف[^0-9٠-٩]{0,20}([5-9]|1[0-2])/);
+  // صيغ رقمية مثل: الصف 4 أو الصف: ٤
+  const m = t.match(/الصف[^0-9]{0,20}([1-9]|1[0-2])/);
   return m ? normalizeDigits(m[1]) : '';
 }
 
 function extractSectionNumber(text) {
   const t = normalizeDigits(text);
-  // في التقرير يظهر رقم الشعبة قبل "/" بجانب السنة الدراسية، مثل: 1 /2027/2026
+
+  // الصيغة الشائعة في ملفات الطلبة: 1 / الرابع : الصف
+  const wordGrade = '(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الثاني\s*عشر)';
+  let m = t.match(new RegExp('(?:^|\\s)(\\d{1,2})\\s*\\/\\s*' + wordGrade + '\s*:?\s*الصف', 'i'));
+  if (m) return m[1];
+
+  // صيغة معكوسة: الصف الرابع : 1 / ...
+  m = t.match(new RegExp('الصف[^\\n0-9]{0,40}' + wordGrade + '[^\\n0-9]{0,20}(\\d{1,2})\\s*\\/', 'i'));
+  if (m) return m[1];
+
+  // الصيغة السابقة: 1 /2027/2026
   const matches = [...t.matchAll(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/g)];
   if (matches.length) return matches[0][1];
 
-  // بديل: "الصف: الخامس" ثم رقم الشعبة قبل الشرطة/السنة.
-  const near = t.match(/الصف[^0-9]{0,40}(\d{1,2})\s*\//);
-  return near ? near[1] : '';
+  // بديل عام: الصف ... ثم رقم الشعبة قبل /
+  m = t.match(/الصف[^0-9]{0,60}(\d{1,2})\s*\//);
+  return m ? m[1] : '';
 }
 
 async function extractStudentsFromPDF(file) {
