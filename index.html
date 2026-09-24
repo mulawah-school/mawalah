@@ -407,8 +407,8 @@ html.school-link-locked #schoolLinkGate{
               <option value="8">الصف الثامن</option>
               <option value="9">الصف التاسع</option>
               <option value="10">الصف العاشر</option>
-              <option value="11">الصف الحادي عشر</option>
-              <option value="12">الصف الثاني عشر</option>
+              <option value="11">الصف الحادي عشر</option>
+              <option value="12">الصف الثاني عشر</option>
             </select>
             <select id="studentEditorSection" onchange="renderStudentEditor()">
               <option value="">اختر الشعبة</option>
@@ -611,6 +611,31 @@ function schoolStorageKey(base) {
 }
 
 async function resolveSchoolLink() {
+  // عند فتح نسخة HTML مباشرة من الجهاز (file://)، لا يمكن للمتصفح
+  // الاعتماد على طلبات الشبكة بنفس طريقة GitHub Pages.
+  // لذلك نسمح بالمعاينة المحلية فقط، مع بقاء التحقق الكامل فعالًا
+  // عند التشغيل من GitHub Pages أو أي استضافة فعلية.
+  if (window.location.protocol === 'file:') {
+    SCHOOL_CONTEXT_READY = true;
+
+    const schoolGate = document.getElementById('schoolLinkGate');
+    if (schoolGate) schoolGate.style.display = 'none';
+    document.documentElement.classList.remove('school-link-locked');
+    document.documentElement.classList.remove('school-link-checking');
+    document.body.classList.remove('school-link-checking');
+
+    // لا نضع اسمًا أو بيانات مدرسة افتراضية من مدرسة أخرى.
+    SCHOOL_REGISTERED_SETTINGS = {
+      name: '',
+      logo: '',
+      messageLimit: null,
+      messagesUsed: null,
+      messagesRemaining: null
+    };
+
+    return {success: true, localPreview: true};
+  }
+
   if (!schoolHasLinkContext()) {
     SCHOOL_CONTEXT_READY = true;
     return {success: true, legacy: true};
@@ -1224,8 +1249,8 @@ function fillGradeSelect(select, includeLabel = 'اختر') {
     // النص المعروض مستقل تمامًا عن الصف الآخر.
     opt.value = g;
     opt.textContent = 'الصف ' + (
-      g === '11' ? 'الحادي عشر' :
-      g === '12' ? 'الثاني عشر' :
+      g === '11' ? 'الحادي\u00A0عشر' :
+      g === '12' ? 'الثاني\u00A0عشر' :
       (GRADE_NAMES[g] || '')
     );
 
@@ -1442,7 +1467,15 @@ function extractGradeNumber(text) {
   }
 
   // صيغ رقمية مثل: الصف 11 أو الصف: ١٢
-  const m = raw.match(/الصف\s*[:：-]?\s*(1[0-2]|[1-9])\b/i);
+  let m = raw.match(/الصف\s*[:：-]?\s*(1[0-2]|[1-9])\b/i);
+  if (m) return normalizeDigits(m[1]);
+
+  // احتياط لملفات CrystalReport التي تفصل كلمة الصف عن الرقم
+  // أو تعرض الرقم قبل كلمة الصف.
+  m = raw.match(/(?:^|\s)(1[0-2]|[1-9])\s*\/\s*(?:الصف|$)/i);
+  if (m) return normalizeDigits(m[1]);
+
+  m = raw.match(/(?:الصف|Class)[^0-9]{0,80}(1[0-2]|[1-9])/i);
   return m ? normalizeDigits(m[1]) : '';
 }
 
@@ -1526,19 +1559,9 @@ async function extractStudentsFromPDF(file) {
 
     if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
 
-    if (!detectedSection) {
-      // التقرير المعروض يكتبها بهذا الشكل تقريبًا:
-      // 2027/2026 : السنة الدراسية   1 /   الخامس : الصف
-      let m = normalizeDigits(pageText).match(
-        /(\d{1,2})\s*\/\s*(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\s*عشر|الحاديعشر|الثاني\s*عشر|الثانيعشر)\s*:\s*الصف/
-      );
-      if (!m) {
-        m = normalizeDigits(pageText).match(/الصف[^0-9]{0,50}(\d{1,2})\s*\//);
-      }
-      if (!m) {
-        m = normalizeDigits(pageText).match(/(\d{1,2})\s*\/\s*20\d{2}/);
-      }
-      if (m) detectedSection = m[1];
+      if (!detectedSection) {
+      // استخدام الدالة العامة مع دعم صيغ CrystalReport المختلفة.
+      detectedSection = extractSectionNumber(pageText);
     }
 
     // في هذا النوع من القوائم يكون ترتيب الصف:
@@ -3257,6 +3280,23 @@ function toggleDesignerInfo() {
   info.style.display = info.style.display === 'none' ? 'block' : 'none';
 }
 
+<script id="grade1112FinalGuard">
+document.addEventListener('DOMContentLoaded', function () {
+  const labels = {
+    '11': 'الصف الحادي\u00A0عشر',
+    '12': 'الصف الثاني\u00A0عشر'
+  };
+
+  ['gradeSelectAbs','gradeSelectMorning','gradeSelectViol','studentEditorGrade'].forEach(function(id) {
+    const select = document.getElementById(id);
+    if (!select) return;
+
+    Array.from(select.options).forEach(function(option) {
+      const value = String(option.value || '').trim();
+      if (labels[value]) option.textContent = labels[value];
+    });
+  });
+});
 </script>
 <!-- معلومات المصمم -->
 <footer style="text-align: center; padding: 15px; background: #d9f0ff; color: #003f66; font-size: 14px;">
