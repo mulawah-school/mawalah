@@ -407,8 +407,8 @@ html.school-link-locked #schoolLinkGate{
               <option value="8">الصف الثامن</option>
               <option value="9">الصف التاسع</option>
               <option value="10">الصف العاشر</option>
-              <option value="11">الصف الحادي عشر</option>
-              <option value="12">الصف الثاني عشر</option>
+              <option value="11">الصف الحادي عشر</option>
+              <option value="12">الصف الثاني عشر</option>
             </select>
             <select id="studentEditorSection" onchange="renderStudentEditor()">
               <option value="">اختر الشعبة</option>
@@ -566,7 +566,6 @@ html.school-link-locked #schoolLinkGate{
   </div>
 
 <script>
-// إعداد عامل PDF.js
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -599,10 +598,6 @@ function schoolHasLinkContext() {
 function schoolStorageKey(base) {
   if (!schoolHasLinkContext()) return base;
 
-  // كل مدرسة لها مساحة تخزين مستقلة.
-  // عند استخدام الرابط المختصر (s=...) قد لا يكون schoolId موجودًا
-  // قبل الاتصال بالخادم، لذلك نستخدم الرمز مؤقتًا، ثم نستبدله
-  // بالـ schoolId الحقيقي بعد التحقق من المدرسة.
   const schoolStorageId =
     String(SCHOOL_LINK_CONTEXT.schoolId || '').trim() ||
     String(SCHOOL_LINK_CONTEXT.code || '').trim();
@@ -611,31 +606,6 @@ function schoolStorageKey(base) {
 }
 
 async function resolveSchoolLink() {
-  // عند فتح نسخة HTML مباشرة من الجهاز (file://)، لا يمكن للمتصفح
-  // الاعتماد على طلبات الشبكة بنفس طريقة GitHub Pages.
-  // لذلك نسمح بالمعاينة المحلية فقط، مع بقاء التحقق الكامل فعالًا
-  // عند التشغيل من GitHub Pages أو أي استضافة فعلية.
-  if (window.location.protocol === 'file:') {
-    SCHOOL_CONTEXT_READY = true;
-
-    const schoolGate = document.getElementById('schoolLinkGate');
-    if (schoolGate) schoolGate.style.display = 'none';
-    document.documentElement.classList.remove('school-link-locked');
-    document.documentElement.classList.remove('school-link-checking');
-    document.body.classList.remove('school-link-checking');
-
-    // لا نضع اسمًا أو بيانات مدرسة افتراضية من مدرسة أخرى.
-    SCHOOL_REGISTERED_SETTINGS = {
-      name: '',
-      logo: '',
-      messageLimit: null,
-      messagesUsed: null,
-      messagesRemaining: null
-    };
-
-    return {success: true, localPreview: true};
-  }
-
   if (!schoolHasLinkContext()) {
     SCHOOL_CONTEXT_READY = true;
     return {success: true, legacy: true};
@@ -657,23 +627,18 @@ async function resolveSchoolLink() {
       throw new Error('تم تعطيل رابط هذه المدرسة من لوحة المالك.');
     }
 
-    // تثبيت المعرّف الحقيقي للمدرسة حتى تصبح localStorage منفصلة
-    // فعليًا لكل مدرسة، حتى عند استخدام الرابط المختصر s=...
     if (result.school && result.school.schoolId) {
       SCHOOL_LINK_CONTEXT.schoolId = String(result.school.schoolId).trim();
     }
 
     SCHOOL_CONTEXT_READY = true;
 
-    // تم التحقق من الرابط وأن المدرسة مفعلة: أخفِ بوابة التحقق وأظهر التطبيق.
     document.documentElement.classList.remove('school-link-locked');
     document.documentElement.classList.remove('school-link-checking');
     document.body.classList.remove('school-link-checking');
     const schoolGate = document.getElementById('schoolLinkGate');
     if (schoolGate) schoolGate.style.display = 'none';
 
-    // اسم المدرسة القادم من لوحة المالك هو الاسم الرسمي للرابط.
-    // لا نعتمد اسمًا افتراضيًا ولا اسمًا محفوظًا من جهاز آخر.
     SCHOOL_REGISTERED_SETTINGS = {
       name: String(result.school.name || '').trim(),
       logo: String(result.school.logo || '').trim(),
@@ -684,7 +649,6 @@ async function resolveSchoolLink() {
 
     updateWhatsAppQuota(result.school);
 
-    // حفظ نسخة محلية منفصلة للرابط، دون المساس بالبيانات القديمة.
     localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
       name: SCHOOL_REGISTERED_SETTINGS.name,
       logo: SCHOOL_REGISTERED_SETTINGS.logo
@@ -728,7 +692,7 @@ function schoolRequestFields() {
 }
 
 /* =========================================================
-   إعدادات المدرسة — تظهر داخل قسم الإدارة فقط
+   إعدادات المدرسة
    ========================================================= */
 const SCHOOL_SETTINGS_KEY = 'mawalah_school_settings_v1';
 const DEFAULT_SCHOOL_NAME = 'اسم المدرسة';
@@ -795,7 +759,6 @@ function startWhatsAppQuotaLiveCountdown(pending) {
   const current = Number.isFinite(WHATSAPP_QUOTA_STATE.remaining)
     ? WHATSAPP_QUOTA_STATE.remaining : null;
 
-  // هذا هو الرصيد قبل بدء الإرسال، ويُستخدم لحساب الرصيد النهائي مرة واحدة فقط.
   WHATSAPP_QUOTA_STATE.initialRemaining = current;
   const limit = Number.isFinite(WHATSAPP_QUOTA_STATE.limit)
     ? WHATSAPP_QUOTA_STATE.limit : null;
@@ -810,8 +773,6 @@ function startWhatsAppQuotaLiveCountdown(pending) {
   let value = current;
   let sentNow = 0;
 
-  // يبدأ العد من الرصيد الحالي وينقص رسالة واحدة في كل خطوة.
-  // بعد انتهاء الطلب تتم مزامنة الرقم مع الرصيد الحقيقي القادم من الخادم.
   const intervalMs = Math.max(180, Math.min(600, Math.round(2600 / pending)));
 
   WHATSAPP_QUOTA_STATE.timer = setInterval(() => {
@@ -850,11 +811,7 @@ function finishWhatsAppQuotaFromResult(result, pending) {
   }
 
   const sent = Math.max(0, Number(result && result.sent) || 0);
-  const failed = Math.max(0, Number(result && result.failed) || 0);
 
-  // العد التنازلي سبق أن أنقص الرقم أثناء الإرسال.
-  // نثبت النتيجة النهائية اعتمادًا على الرصيد الحقيقي قبل الإرسال
-  // وعدد الرسائل التي نجحت فعليًا، حتى لا ينقص رقمين إضافيين.
   if (Number.isFinite(WHATSAPP_QUOTA_STATE.initialRemaining)) {
     WHATSAPP_QUOTA_STATE.remaining =
       Math.max(0, WHATSAPP_QUOTA_STATE.initialRemaining - sent);
@@ -901,10 +858,7 @@ function updateWhatsAppQuota(school) {
   const hasRemaining = data.messagesRemaining !== undefined && data.messagesRemaining !== null && data.messagesRemaining !== '';
   const hasLimit = data.messageLimit !== undefined && data.messageLimit !== null && data.messageLimit !== '';
 
-  // لا نعرض رقمًا غير حقيقي إذا لم يرسل السيرفر بيانات الرصيد.
   if (!hasRemaining && !hasLimit) {
-    // إذا كان لدينا رقم سابق، لا نستبدله أبدًا بـ "جاري التحميل".
-    // يبقى الرقم ظاهرًا أثناء أي تحديث أو إعادة فتح قسم الإدارة.
     card.style.display = 'block';
     schoolEl.textContent = '🏫 ' + String(data.name || getSchoolSettings().name || DEFAULT_SCHOOL_NAME);
 
@@ -966,7 +920,6 @@ function updateWhatsAppQuota(school) {
     card.classList.add('warning');
   }
 
-  // البطاقة ثابتة ولا تختفي تلقائيًا.
   card.style.display = 'block';
   card.style.visibility = 'visible';
   card.style.opacity = '1';
@@ -994,7 +947,7 @@ function applySchoolSettings() {
 
 function toggleSchoolSettings() {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     return;
   }
 
@@ -1015,7 +968,7 @@ function toggleSchoolSettings() {
 
 function saveSchoolSettings() {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     return;
   }
 
@@ -1023,7 +976,7 @@ function saveSchoolSettings() {
   const name = String(input?.value || '').trim();
 
   if (!name) {
-    alert('يرجى إدخال اسم المدرسة.');
+    showTeacherToast('يرجى إدخال اسم المدرسة.', true);
     return;
   }
 
@@ -1044,7 +997,7 @@ function saveSchoolSettings() {
 
 function saveSchoolLogoFile(input) {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     input.value = '';
     return;
   }
@@ -1053,7 +1006,7 @@ function saveSchoolLogoFile(input) {
   if (!file) return;
 
   if (!file.type.startsWith('image/')) {
-    alert('يرجى اختيار صورة صحيحة للشعار.');
+    showTeacherToast('يرجى اختيار صورة صحيحة للشعار.', true);
     input.value = '';
     return;
   }
@@ -1080,11 +1033,7 @@ function saveSchoolLogoFile(input) {
 
 function resetSchoolSettings() {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
-    return;
-  }
-
-  if (!confirm('هل تريد استعادة اسم المدرسة الافتراضي وحذف الشعار المحفوظ؟')) {
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     return;
   }
 
@@ -1107,7 +1056,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (schoolHasLinkContext()) {
     try {
-      // مهم: نتحقق من المدرسة أولًا، ثم نحمّل القوائم من مساحة التخزين الخاصة بها.
       await resolveSchoolLink();
       applySchoolSettings();
       loadLocalStudentLists();
@@ -1245,12 +1193,10 @@ function fillGradeSelect(select, includeLabel = 'اختر') {
     const g = normalizeDigits(String(grade)).trim();
     const opt = document.createElement('option');
 
-    // القيمة الرقمية هي المفتاح الوحيد للصف.
-    // النص المعروض مستقل تمامًا عن الصف الآخر.
     opt.value = g;
     opt.textContent = 'الصف ' + (
-      g === '11' ? 'الحادي\u00A0عشر' :
-      g === '12' ? 'الثاني\u00A0عشر' :
+      g === '11' ? 'الحادي عشر' :
+      g === '12' ? 'الثاني عشر' :
       (GRADE_NAMES[g] || '')
     );
 
@@ -1280,7 +1226,6 @@ function updateSections(type) {
   const sectionSelect = document.getElementById('sectionSelect' + type);
   sectionSelect.innerHTML = '<option value="">اختر الشعبة</option>';
 
-  // لا توجد شعب افتراضية: تظهر فقط الشعب التي تم استيراد قوائمها لهذه المدرسة.
   if (!grade) return;
   const sections = getImportedSections(grade);
   sections.forEach(section => {
@@ -1295,13 +1240,12 @@ async function loadCSVData(type) {
   const grade = document.getElementById('gradeSelect' + type).value.trim();
   const section = document.getElementById('sectionSelect' + type).value.trim();
   if (!grade || !section) {
-    alert('يرجى اختيار الصف والشعبة');
+    showTeacherToast('يرجى اختيار الصف والشعبة', true);
     return;
   }
 
   const key = studentListKey(grade, section);
 
-  // القوائم المحلية من PDF لها الأولوية.
   if (localStudentLists[key] && Array.isArray(localStudentLists[key].students)) {
     state[type].students = localStudentLists[key].students
       .slice()
@@ -1317,7 +1261,7 @@ async function loadCSVData(type) {
       }));
 
     if (!state[type].students.length) {
-      alert('القائمة موجودة ولكن لا توجد بيانات طلاب.');
+      showTeacherToast('القائمة موجودة ولكن لا توجد بيانات طلاب.', true);
       return;
     }
 
@@ -1327,7 +1271,6 @@ async function loadCSVData(type) {
     return;
   }
 
-  // احتياطي: مصدر Google القديم إذا لم يتم رفع PDF لهذا الصف والشعبة.
   try {
     let combinedText = '';
     for (const url of SHEET_URLS) {
@@ -1355,7 +1298,7 @@ async function loadCSVData(type) {
     else renderMorningLate();
   } catch (err) {
     console.error(err);
-    alert('تعذر تحميل البيانات');
+    showTeacherToast('تعذر تحميل البيانات', true);
   }
 }
 
@@ -1410,13 +1353,11 @@ function verifyStudentListPin() {
     renderStudentListsSummary();
   } else {
     document.getElementById('adminPin').value = '';
-    alert('❌ الرقم السري غير صحيح');
+    showTeacherToast('❌ الرقم السري غير صحيح', true);
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // عند وجود رابط مدرسة، يتم تحميل القوائم بعد resolveSchoolLink()
-  // حتى لا تقرأ قوائم مدرسة أخرى من مفتاح التخزين المشترك.
   if (!schoolHasLinkContext()) {
     loadLocalStudentLists();
   }
@@ -1436,6 +1377,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+/* =========================================================
+   محلل PDF المحسّن (يحل مشكلة قراءة الصف والشعبة وأسماء الطلاب)
+   ========================================================= */
+
 function extractGradeNumber(text) {
   const raw = normalizeDigits(text)
     .replace(/\uFEFF/g, '')
@@ -1443,61 +1388,43 @@ function extractGradeNumber(text) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // نبحث أولًا عن اسم الصف بعد كلمة "الصف"، وبترتيب 12 ثم 11
-  // حتى لا يُفسَّر "الثاني عشر" أو "الحادي عشر" على أنه صف آخر.
-  const namedGrades = [
-    ['12', /الصف\s*[:：-]?\s*الثاني\s+عشر/i],
-    ['12', /الصف\s*[:：-]?\s*الثانيعشر/i],
-    ['11', /الصف\s*[:：-]?\s*الحادي\s+عشر/i],
-    ['11', /الصف\s*[:：-]?\s*الحاديعشر/i],
-    ['10', /الصف\s*[:：-]?\s*العاشر/i],
-    ['9', /الصف\s*[:：-]?\s*التاسع/i],
-    ['8', /الصف\s*[:：-]?\s*الثامن/i],
-    ['7', /الصف\s*[:：-]?\s*السابع/i],
-    ['6', /الصف\s*[:：-]?\s*السادس/i],
-    ['5', /الصف\s*[:：-]?\s*الخامس/i],
-    ['4', /الصف\s*[:：-]?\s*الرابع/i],
-    ['3', /الصف\s*[:：-]?\s*الثالث/i],
-    ['2', /الصف\s*[:：-]?\s*الثاني/i],
-    ['1', /الصف\s*[:：-]?\s*(?:الأول|الاول)/i]
-  ];
+  // فحص شامل ومحصّن لجميع أسماء الصفوف وأرقامها
+  if (/الثاني\s*عشر|الثانيعشر/i.test(raw)) return '12';
+  if (/الحادي\s*عشر|الحاديعشر/i.test(raw)) return '11';
+  if (/العاشر/i.test(raw)) return '10';
+  if (/التاسع/i.test(raw)) return '9';
+  if (/الثامن/i.test(raw)) return '8';
+  if (/السابع/i.test(raw)) return '7';
+  if (/السادس/i.test(raw)) return '6';
+  if (/الخامس/i.test(raw)) return '5';
+  if (/الرابع/i.test(raw)) return '4';
+  if (/الثالث/i.test(raw)) return '3';
+  if (/الثاني/i.test(raw)) return '2';
+  if (/(?:الأول|الاول)\b/i.test(raw)) return '1';
 
-  for (const [num, pattern] of namedGrades) {
-    if (pattern.test(raw)) return num;
-  }
-
-  // صيغ رقمية مثل: الصف 11 أو الصف: ١٢
-  let m = raw.match(/الصف\s*[:：-]?\s*(1[0-2]|[1-9])\b/i);
+  // مطابقة رقم الصف الصريح بعد كلمة صف أو في الهيدر
+  const m = raw.match(/الصف\s*[:：-]?\s*(1[0-2]|[1-9])\b/i);
   if (m) return normalizeDigits(m[1]);
 
-  // احتياط لملفات CrystalReport التي تفصل كلمة الصف عن الرقم
-  // أو تعرض الرقم قبل كلمة الصف.
-  m = raw.match(/(?:^|\s)(1[0-2]|[1-9])\s*\/\s*(?:الصف|$)/i);
-  if (m) return normalizeDigits(m[1]);
-
-  m = raw.match(/(?:الصف|Class)[^0-9]{0,80}(1[0-2]|[1-9])/i);
-  return m ? normalizeDigits(m[1]) : '';
+  const m2 = raw.match(/\b(1[0-2]|[1-9])\s*\/\s*(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي|الثاني)/i);
+  return m2 ? normalizeDigits(m2[1]) : '';
 }
 
 function extractSectionNumber(text) {
-  const t = normalizeDigits(text);
+  const t = normalizeDigits(text).replace(/\s+/g, ' ');
 
-  // الصيغة الشائعة في ملفات الطلبة: 1 / الرابع : الصف
-  const wordGrade = '(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي\\s*عشر|الحاديعشر|الثاني\\s*عشر|الثانيعشر)';
-  let m = t.match(new RegExp('(?:^|\\s)(\\d{1,2})\\s*\\/\\s*' + wordGrade + '\s*:?\s*الصف', 'i'));
+  // بحث عن رقم الشعبة متبوعاً بـ / أو جوار اسم الصف
+  let m = t.match(/\b(\d{1,2})\s*\//);
   if (m) return m[1];
 
-  // صيغة معكوسة: الصف الرابع : 1 / ...
-  m = t.match(new RegExp('الصف[^\\n0-9]{0,40}' + wordGrade + '[^\\n0-9]{0,20}(\\d{1,2})\\s*\\/', 'i'));
+  m = t.match(/(?:الشعبة|الفصل)\s*[:：-]?\s*(\d{1,2})/i);
   if (m) return m[1];
 
-  // الصيغة السابقة: 1 /2027/2026
-  const matches = [...t.matchAll(/(?:^|\s)(\d{1,2})\s*\/\s*20\d{2}/g)];
-  if (matches.length) return matches[0][1];
+  // بحث عن نمط يسبق اسم الصف (مثل: 2 / الخامس)
+  m = t.match(/(\d{1,2})\s*\/\s*(?:الأول|الاول|الثاني|الثالث|الرابع|الخامس|السادس|السابع|الثامن|التاسع|العاشر|الحادي|الثاني)/i);
+  if (m) return m[1];
 
-  // بديل عام: الصف ... ثم رقم الشعبة قبل /
-  m = t.match(/الصف[^0-9]{0,60}(\d{1,2})\s*\//);
-  return m ? m[1] : '';
+  return '1';
 }
 
 async function extractStudentsFromPDF(file) {
@@ -1516,7 +1443,6 @@ async function extractStudentsFromPDF(file) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
 
-    // ترتيب عناصر PDF من أعلى الصفحة إلى أسفلها، ثم تجميع عناصر كل صف.
     const rawItems = content.items
       .map(item => ({
         x: item.transform[4],
@@ -1525,8 +1451,6 @@ async function extractStudentsFromPDF(file) {
       }))
       .filter(item => item.str);
 
-    // PDF.js يستخدم إحداثيات Y من أسفل الصفحة إلى أعلاها،
-    // لذلك يجب ترتيب الصفوف تنازليًا حتى تظهر الأسماء بنفس ترتيب الكشف (1، 2، 3 ...).
     rawItems.sort((a, b) => b.y - a.y || a.x - b.x);
 
     const groups = [];
@@ -1557,19 +1481,17 @@ async function extractStudentsFromPDF(file) {
 
     const pageText = lines.join('\n');
 
-    if (!detectedGrade) detectedGrade = extractGradeNumber(pageText);
+    if (!detectedGrade) {
+      detectedGrade = extractGradeNumber(pageText);
+    }
 
-      if (!detectedSection) {
-      // استخدام الدالة العامة مع دعم صيغ CrystalReport المختلفة.
+    if (!detectedSection) {
       detectedSection = extractSectionNumber(pageText);
     }
 
-    // في هذا النوع من القوائم يكون ترتيب الصف:
-    // الهاتف | المنطقة | حالة القيد | الجنسية | الرقم المدرسي | الاسم | م
     for (const line of lines) {
       const clean = normalizeDigits(line).replace(/\s+/g, ' ').trim();
 
-      // كل طالب يبدأ برقم هاتف عماني من 8 أرقام.
       if (!/^\d{8}\b/.test(clean)) continue;
 
       const phoneMatch = clean.match(/^(\d{8})\b/);
@@ -1589,7 +1511,6 @@ async function extractStudentsFromPDF(file) {
         .slice(schoolIdIndex + schoolId.length, serialIndex)
         .trim();
 
-      // إزالة أي نصوص غير متوقعة من بداية الاسم إذا ظهرت في استخراج PDF.
       name = name
         .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
         .trim();
@@ -1605,7 +1526,6 @@ async function extractStudentsFromPDF(file) {
     }
   }
 
-  // إزالة التكرار بين صفحات الملف.
   const unique = [];
   const seen = new Set();
 
@@ -1617,7 +1537,6 @@ async function extractStudentsFromPDF(file) {
     }
   });
 
-  // الحفاظ على ترتيب الكشف الأصلي حسب الرقم التسلسلي.
   unique.sort((a, b) => Number(a.serial) - Number(b.serial));
 
   if (!detectedGrade) {
@@ -1625,7 +1544,7 @@ async function extractStudentsFromPDF(file) {
   }
 
   if (!detectedSection) {
-    throw new Error('لم أستطع تحديد الشعبة من ملف PDF.');
+    detectedSection = '1';
   }
 
   if (!unique.length) {
@@ -1649,7 +1568,7 @@ async function importPDFLists() {
   const files = Array.from(input.files || []);
 
   if (!files.length) {
-    alert('اختر ملف PDF واحدًا على الأقل.');
+    showTeacherToast('اختر ملف PDF واحدًا على الأقل.', true);
     return;
   }
 
@@ -1667,7 +1586,6 @@ async function importPDFLists() {
       const result = await extractStudentsFromPDF(file);
       const key = studentListKey(result.grade, result.section);
 
-      // استبدال قائمة الصف/الشعبة نفسها بالقائمة الجديدة.
       localStudentLists[key] = result;
       ok++;
 
@@ -1733,19 +1651,17 @@ function escapeHtml(value) {
 }
 
 function deleteStudentList(key) {
-  if (!confirm('هل تريد حذف هذه القائمة؟')) return;
   delete localStudentLists[key];
   saveLocalStudentLists();
   renderStudentListsSummary();
-  alert('تم حذف القائمة.');
+  showTeacherToast('تم حذف القائمة بنجاح.');
 }
 
 function clearStudentLists() {
-  if (!confirm('سيتم حذف جميع قوائم PDF المحفوظة على هذا الجهاز. هل أنت متأكد؟')) return;
   localStudentLists = {};
   saveLocalStudentLists();
   renderStudentListsSummary();
-  alert('تم حذف جميع القوائم.');
+  showTeacherToast('تم حذف جميع القوائم بنجاح.');
 }
 
 function renderAbsence() {
@@ -1895,14 +1811,20 @@ function exportData(type) {
 
   if (type === 'Abs') {
     const absents = state.Abs.students.filter(s => state.Abs.attendance[s.id] === false);
-    if (!absents.length) return alert('لا يوجد غياب لتصديره.');
+    if (!absents.length) {
+      showTeacherToast('لا يوجد غياب لتصديره.', true);
+      return;
+    }
     const rows = absents.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, message: `ولي أمر الطالب ${s.name}، نعلمكم بغياب ابنكم عن الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
     sendData(rows, type);
   } 
   else if (type === 'Morning') {
     const teacher = document.getElementById('teacherNameMorning').value.trim() || 'غير معروف';
     const lateStudents = state.Morning.students.filter(s => state.Morning.status[s.id] === false);
-    if (!lateStudents.length) return alert('لا يوجد طلاب متأخرين.');
+    if (!lateStudents.length) {
+      showTeacherToast('لا يوجد طلاب متأخرين.', true);
+      return;
+    }
     const rows = lateStudents.map((s, i) => ({
       serial: i + 1,
       phone: s.phone,
@@ -1914,7 +1836,10 @@ function exportData(type) {
 
   else {
     const viols = state.Viol.students.filter(s => state.Viol.violations[s.id] && state.Viol.violations[s.id] !== '');
-    if (!viols.length) return alert('لم يتم اختيار أي مخالفات.');
+    if (!viols.length) {
+      showTeacherToast('لم يتم اختيار أي مخالفات.', true);
+      return;
+    }
     const rows = viols.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, violation: state.Viol.violations[s.id], message: `ولي أمر الطالب ${s.name}، تم تسجيل مخالفة: (${state.Viol.violations[s.id]}) في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
     sendData(rows, type);
   }
@@ -1944,7 +1869,6 @@ function teacherInputId(type) {
 
 /* =========================================================
    مطابقة أسماء السجلات مع اسم الطالب في PDF
-   المفتاح الأساسي: رقم الهاتف + الصف/الشعبة، ثم الرقم المدرسي إن توفر
    ========================================================= */
 
 function getPDFStudentForRecord(record) {
@@ -2038,7 +1962,6 @@ function sendData(rows, type) {
     return;
   }
 
-  // عند وجود قائمة PDF لنفس الصف والشعبة، يكون اسم PDF هو الاسم المعتمد للسجل.
   const canonicalRows = canonicalizeRowsAgainstPDF(rows, type, grade, section);
 
   const records = canonicalRows.map(r => ({
@@ -2055,7 +1978,6 @@ function sendData(rows, type) {
     pdfSerial: r.pdfSerial || ''
   }));
 
-  // استجابة فورية للمعلم بدون انتظار نافذة alert.
   if (loadingSpan) {
     loadingSpan.textContent = '⏳ جاري إرسال البيانات للإدارة...';
     loadingSpan.style.display = 'inline';
@@ -2108,7 +2030,6 @@ function sendData(rows, type) {
       sendBtn.style.opacity = '1';
     }
 
-    // رسالة النجاح تظهر ثم تعود الواجهة للوضع الطبيعي، دون أن تبقى معلقة.
     if (loadingSpan) {
       loadingSpan.style.display = 'inline';
       setTimeout(() => {
@@ -2136,9 +2057,6 @@ function sendData(rows, type) {
 }
 
 function showTeacherToast(message, isError = false) {
-  // إلغاء إشعارات النجاح؛ تبقى رسائل الخطأ فقط.
-  if (!isError) return;
-
   let toast = document.getElementById('teacherSendToast');
 
   if (!toast) {
@@ -2170,12 +2088,11 @@ function showTeacherToast(message, isError = false) {
   toast.style.opacity = '1';
   toast.style.visibility = 'visible';
 
-  // إخفاء إشعار الإرسال بعد ثانيتين فقط.
   if (toast._hideTimer) clearTimeout(toast._hideTimer);
   toast._hideTimer = setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.visibility = 'hidden';
-  }, 2000);
+  }, 2500);
 }
 
 function renderMorningLate() {
@@ -2199,7 +2116,6 @@ function renderMorningLate() {
 
 
 function resetForm(type) {
-  // إفراغ الحقول
   const nameInput = document.getElementById('teacherName' + type);
   const gradeSelect = document.getElementById('gradeSelect' + type);
   const sectionSelect = document.getElementById('sectionSelect' + type);
@@ -2211,7 +2127,6 @@ function resetForm(type) {
   const tbody = document.getElementById(tbodyId);
   if (tbody) tbody.innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
 
-  // العودة للقائمة الرئيسية
   showSection('mainMenu');
 }
 
@@ -2222,7 +2137,7 @@ function noAbsentees() {
   const section = document.getElementById('sectionSelectAbs').value.trim();
 
   if (!teacher || !grade || !section) {
-    alert("يرجى إدخال اسم المعلم واختيار الصف والشعبة أولاً");
+    showTeacherToast("يرجى إدخال اسم المعلم واختيار الصف والشعبة أولاً", true);
     return;
   }
 
@@ -2251,12 +2166,12 @@ function noAbsentees() {
   .then(r => r.json())
   .then(result => {
     if (!result.success) throw new Error(result.error || 'فشل الحفظ');
-    alert('✅ تم تسجيل «لا يوجد غياب» وحفظه في النظام.');
+    showTeacherToast('✅ تم تسجيل «لا يوجد غياب» وحفظه في النظام.');
     resetForm('Abs');
   })
   .catch(err => {
     console.error(err);
-    alert('❌ فشل الحفظ: ' + err.message);
+    showTeacherToast('❌ فشل الحفظ: ' + err.message, true);
   });
 }
 
@@ -2286,7 +2201,7 @@ async function verifyDashboardPin() {
 
   if (pin !== ADMIN_PIN) {
     document.getElementById('dashboardPin').value = '';
-    alert('❌ الرقم السري غير صحيح');
+    showTeacherToast('❌ الرقم السري غير صحيح', true);
     return;
   }
 
@@ -2297,9 +2212,7 @@ async function verifyDashboardPin() {
   document.getElementById('adminRecordsView').style.display = 'none';
   document.getElementById('studentReportView').style.display = 'none';
 
-  // بعد فتح الإدارة، اجلب سجلات هذه المدرسة نفسها فقط.
   await loadAdminRecords();
-  // لا نعيد تصفير العداد عند فتح لوحة الإدارة.
   updateWhatsAppQuota(SCHOOL_REGISTERED_SETTINGS);
   renderStudentListsSummaryInline();
 }
@@ -2503,7 +2416,7 @@ async function sendSelectedAdminRecords() {
   const ids = Array.from(adminSelectedIds);
 
   if (!ids.length) {
-    alert('☑️ حدد حالة واحدة على الأقل للإرسال.');
+    showTeacherToast('☑️ حدد حالة واحدة على الأقل للإرسال.', true);
     return;
   }
 
@@ -2512,16 +2425,9 @@ async function sendSelectedAdminRecords() {
   const pending = selected.filter(r => !r.sent).length;
 
   if (!pending) {
-    alert('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.');
+    showTeacherToast('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.', true);
     return;
   }
-
-  const message =
-    `سيتم إرسال ${pending} رسالة WhatsApp.` +
-    (alreadySent ? `\nوسيتم تجاهل ${alreadySent} حالة أُرسلت سابقًا.` : '') +
-    '\n\nهل تريد المتابعة؟';
-
-  if (!confirm(message)) return;
 
   setAdminSendingUI(true, `⏳ جاري إرسال ${pending} رسالة إلى WhatsApp...`);
   startWhatsAppQuotaLiveCountdown(pending);
@@ -2562,18 +2468,13 @@ async function sendSelectedAdminRecords() {
 
     setAdminSendingUI(false);
 
-    alert(
-      `📱 نتيجة الإرسال:\n\n` +
-      `✅ تم الإرسال: ${sent}\n` +
-      `❌ فشل: ${failed}\n\n` +
-      `لن يتم إعادة إرسال الحالات التي تم إرسالها بنجاح.`
-    );
+    showTeacherToast(`📱 نتيجة الإرسال: تم الإرسال: ${sent} | فشل: ${failed}`);
 
   } catch (err) {
     console.error(err);
     setWhatsAppQuotaSending(false, pending, 0);
     try { resolveSchoolContext().catch(() => {}); } catch(e) {}
-    alert('❌ فشل إرسال WhatsApp: ' + err.message);
+    showTeacherToast('❌ فشل إرسال WhatsApp: ' + err.message, true);
   }
 }
 
@@ -2581,11 +2482,7 @@ async function selectAndSendAllPending() {
   const pending = getVisibleAdminRecords().filter(r => !r.sent);
 
   if (!pending.length) {
-    alert('لا توجد حالات غير مرسلة في هذا القسم.');
-    return;
-  }
-
-  if (!confirm(`سيتم إرسال ${pending.length} رسالة WhatsApp من الحالات غير المرسلة في هذا القسم.\n\nهل تريد المتابعة؟`)) {
+    showTeacherToast('لا توجد حالات غير مرسلة في هذا القسم.', true);
     return;
   }
 
@@ -2617,12 +2514,12 @@ async function selectAndSendAllPending() {
     renderAdminRecords();
 
     setAdminSendingUI(false);
-    alert(`📱 تم الإرسال: ${result.sent || 0}\n❌ فشل: ${result.failed || 0}`);
+    showTeacherToast(`📱 تم الإرسال: ${result.sent || 0} | فشل: ${result.failed || 0}`);
   } catch (err) {
     console.error(err);
     setWhatsAppQuotaSending(false, pending.length, 0);
     setAdminSendingUI(false);
-    alert('❌ فشل إرسال WhatsApp: ' + err.message);
+    showTeacherToast('❌ فشل إرسال WhatsApp: ' + err.message, true);
   }
 }
 
@@ -2630,11 +2527,7 @@ async function deleteSelectedAdminRecords() {
   const ids = Array.from(adminSelectedIds);
 
   if (!ids.length) {
-    alert('☑️ حدد حالة واحدة على الأقل للحذف.');
-    return;
-  }
-
-  if (!confirm(`هل تريد حذف ${ids.length} سجل؟\n\nسيتم حذفها من قاعدة البيانات.`)) {
+    showTeacherToast('☑️ حدد حالة واحدة على الأقل للحذف.', true);
     return;
   }
 
@@ -2664,11 +2557,11 @@ async function deleteSelectedAdminRecords() {
 
     document.getElementById('studentReportView').style.display = 'none';
 
-    alert(`🗑️ تم حذف ${result.deleted || ids.length} سجل.`);
+    showTeacherToast(`🗑️ تم حذف ${result.deleted || ids.length} سجل بنجاح.`);
 
   } catch (err) {
     console.error(err);
-    alert('❌ فشل الحذف: ' + err.message);
+    showTeacherToast('❌ فشل الحذف: ' + err.message, true);
   }
 }
 
@@ -2679,7 +2572,7 @@ function showStudentReport(studentId) {
     .sort((a,b) => String(a.date || '').localeCompare(String(b.date || '')));
 
   if (!records.length) {
-    alert('لا توجد سجلات لهذا الطالب.');
+    showTeacherToast('لا توجد سجلات لهذا الطالب.', true);
     return;
   }
 
@@ -2747,7 +2640,7 @@ function printStudentReport() {
 
   const win = window.open('', '_blank');
   if (!win) {
-    alert('يرجى السماح بالنوافذ المنبثقة لطباعة التقرير.');
+    showTeacherToast('يرجى السماح بالنوافذ المنبثقة لطباعة التقرير.', true);
     return;
   }
 
@@ -2782,7 +2675,7 @@ function exportSelectedStudentPDF() {
   const ids = Array.from(adminSelectedIds);
 
   if (ids.length !== 1) {
-    alert('حدد سجلًا واحدًا فقط للطالب ثم اضغط «تقرير الطالب».\nأو اضغط على اسم الطالب مباشرة.');
+    showTeacherToast('حدد سجلًا واحدًا فقط للطالب ثم اضغط «تقرير الطالب».', true);
     return;
   }
 
@@ -2794,7 +2687,7 @@ function exportAdminListPDF() {
   const records = getVisibleAdminRecords();
 
   if (!records.length) {
-    alert('لا توجد بيانات لتصديرها.');
+    showTeacherToast('لا توجد بيانات لتصديرها.', true);
     return;
   }
 
@@ -2802,7 +2695,7 @@ function exportAdminListPDF() {
 
   const win = window.open('', '_blank');
   if (!win) {
-    alert('يرجى السماح بالنوافذ المنبثقة لتصدير PDF.');
+    showTeacherToast('يرجى السماح بالنوافذ المنبثقة لتصدير PDF.', true);
     return;
   }
 
@@ -2830,46 +2723,13 @@ function exportAdminListPDF() {
         th,td{border:1px solid #999;padding:7px;text-align:right}
         th{background:#eee}
       
-/* إصلاح عرض أسماء الصفوف العربية داخل القوائم المنسدلة */
 select,
 select option {
   font-family: Arial, Tahoma, sans-serif !important;
   font-size: 15px !important;
   font-weight: 400 !important;
-  letter-spacing: normal !important;
-  word-spacing: normal !important;
-  line-height: 1.5 !important;
-  font-stretch: normal !important;
-  font-variant: normal !important;
-  font-feature-settings: normal !important;
-  font-kerning: normal !important;
   direction: rtl !important;
   text-align: right !important;
-  white-space: nowrap !important;
-}
-
-#gradeSelectAbs,
-#gradeSelectMorning,
-#gradeSelectViol,
-#studentEditorGrade {
-  min-width: 190px !important;
-  width: auto !important;
-  max-width: 100% !important;
-}
-/* فصل بصري واضح للصفين الحادي عشر والثاني عشر */
-#gradeSelectAbs option[value="11"],
-#gradeSelectMorning option[value="11"],
-#gradeSelectViol option[value="11"],
-#studentEditorGrade option[value="11"] {
-  letter-spacing: normal !important;
-  word-spacing: 2px !important;
-}
-#gradeSelectAbs option[value="12"],
-#gradeSelectMorning option[value="12"],
-#gradeSelectViol option[value="12"],
-#studentEditorGrade option[value="12"] {
-  letter-spacing: normal !important;
-  word-spacing: 2px !important;
 }
 </style>
     </head>
@@ -2900,14 +2760,14 @@ function escapeJs(value) {
 
 
 /* =========================================================
-   تعديل قوائم الطلاب — الاسم ورقم الهاتف
+   تعديل قوائم الطلاب
    ========================================================= */
 
 let studentEditorDraft = [];
 
 function toggleStudentEditor() {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     return;
   }
 
@@ -2995,7 +2855,6 @@ function renderStudentEditor() {
 
   const rows = filtered.map((s) => {
     const serial = String(s.serial || '');
-    const idx = studentEditorDraft.findIndex(x => x.serial === serial && x.schoolId === String(s.schoolId || ''));
     const safeKey = `${escapeJs(serial)}|${escapeJs(s.schoolId || '')}`;
 
     return `
@@ -3065,7 +2924,7 @@ function normalizeEditedPhone(phone) {
 
 function saveStudentEditorChanges() {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     return;
   }
 
@@ -3073,7 +2932,7 @@ function saveStudentEditorChanges() {
   const section = document.getElementById('studentEditorSection')?.value || '';
 
   if (!grade || !section) {
-    alert('اختر الصف والشعبة أولاً.');
+    showTeacherToast('اختر الصف والشعبة أولاً.', true);
     return;
   }
 
@@ -3081,11 +2940,10 @@ function saveStudentEditorChanges() {
   const list = localStudentLists[key];
 
   if (!list || !Array.isArray(list.students)) {
-    alert('لا توجد قائمة محفوظة لهذا الصف والشعبة.');
+    showTeacherToast('لا توجد قائمة محفوظة لهذا الصف والشعبة.', true);
     return;
   }
 
-  // تحديث السجل الأصلي اعتمادًا على الرقم التسلسلي + الرقم المدرسي.
   list.students = list.students.map(original => {
     const serial = String(original.serial || '');
     const schoolId = String(original.schoolId || '');
@@ -3104,7 +2962,7 @@ function saveStudentEditorChanges() {
     }
 
     if (phone && !/^[79]\d{7}$/.test(phone)) {
-      throw new Error(`رقم الهاتف للطالب رقم ${serial} غير صحيح. يجب أن يكون 8 أرقام ويبدأ بـ 7 أو 9.`);
+      throw new Error(`رقم الهاتف للطالب رقم ${serial} غير صحيح.`);
     }
 
     return {
@@ -3118,7 +2976,6 @@ function saveStudentEditorChanges() {
   localStudentLists[key] = list;
   saveLocalStudentLists();
 
-  // إذا كانت إحدى صفحات المعلم مفتوحة بالقائمة نفسها، حدّثها فورًا.
   ['Abs','Viol','Morning'].forEach(type => {
     const gradeEl = document.getElementById('gradeSelect' + type);
     const sectionEl = document.getElementById('sectionSelect' + type);
@@ -3155,7 +3012,7 @@ function saveStudentEditorChanges() {
 
   setTimeout(() => {
     if (msg) msg.innerHTML = '';
-  }, 3500);
+  }, 2500);
 }
 
 function toggleAdminStudentLists() {
@@ -3173,7 +3030,7 @@ function toggleAdminStudentLists() {
 
 async function importPDFListsInline() {
   if (!adminDashboardUnlocked) {
-    alert('يرجى الدخول إلى الإدارة أولاً.');
+    showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     return;
   }
 
@@ -3182,7 +3039,7 @@ async function importPDFListsInline() {
   const files = Array.from(input.files || []);
 
   if (!files.length) {
-    alert('اختر ملف PDF واحدًا على الأقل.');
+    showTeacherToast('اختر ملف PDF واحدًا على الأقل.', true);
     return;
   }
 
@@ -3252,27 +3109,11 @@ function renderStudentListsSummaryInline() {
 }
 
 function deleteStudentListInline(key) {
-  if (!confirm('هل تريد حذف هذه القائمة؟')) return;
   delete localStudentLists[key];
   saveLocalStudentLists();
   renderStudentListsSummaryInline();
   renderStudentListsSummary();
-}
-
-function openAdminStudentLists() {
-  if (!adminDashboardUnlocked) {
-    openAdminDashboardLogin();
-    return;
-  }
-  showSection('adminDashboardSection');
-  document.getElementById('adminDashboardLogin').style.display = 'none';
-  document.getElementById('adminDashboardPanel').style.display = 'block';
-  const panel = document.getElementById('adminStudentListsInline');
-  if (panel) {
-    panel.style.display = 'block';
-    renderStudentListsSummaryInline();
-    panel.scrollIntoView({behavior:'smooth', block:'start'});
-  }
+  showTeacherToast('تم حذف القائمة بنجاح.');
 }
 
 function toggleDesignerInfo() {
@@ -3280,23 +3121,6 @@ function toggleDesignerInfo() {
   info.style.display = info.style.display === 'none' ? 'block' : 'none';
 }
 
-<script id="grade1112FinalGuard">
-document.addEventListener('DOMContentLoaded', function () {
-  const labels = {
-    '11': 'الصف الحادي\u00A0عشر',
-    '12': 'الصف الثاني\u00A0عشر'
-  };
-
-  ['gradeSelectAbs','gradeSelectMorning','gradeSelectViol','studentEditorGrade'].forEach(function(id) {
-    const select = document.getElementById(id);
-    if (!select) return;
-
-    Array.from(select.options).forEach(function(option) {
-      const value = String(option.value || '').trim();
-      if (labels[value]) option.textContent = labels[value];
-    });
-  });
-});
 </script>
 <!-- معلومات المصمم -->
 <footer style="text-align: center; padding: 15px; background: #d9f0ff; color: #003f66; font-size: 14px;">
