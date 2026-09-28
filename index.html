@@ -146,7 +146,67 @@ input,select{border-radius:12px!important}
 .whatsapp-quota-card.danger .whatsapp-quota-progress>div{background:#ef4444}
 
 .whatsapp-quota-card { display:block !important; visibility:visible !important; opacity:1 !important; }
-#teacherSendToast { visibility:visible !important; opacity:1 !important; }
+
+/* ===== توافق الهاتف ===== */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{overflow-x:hidden}
+img{max-width:100%;height:auto}
+
+@media (hover:none){
+  button:hover,.menu-btn:hover,.admin-card:hover{transform:none!important;box-shadow:none}
+}
+
+@media (max-width:700px){
+  body{font-size:16px;padding-bottom:env(safe-area-inset-bottom)}
+
+  /* القائمة الرئيسية */
+  .menu-container{padding:24px 14px!important}
+  .menu-btn{display:block!important;width:100%!important;box-sizing:border-box;margin:12px 0!important;
+    padding:16px 14px!important;font-size:19px!important}
+
+  /* الشريط العلوي */
+  .top-bar{padding:10px 12px!important;gap:8px;flex-wrap:wrap}
+  .top-bar h2{font-size:15px!important;line-height:1.5;flex:1 1 auto;min-width:0}
+  .top-bar h2 span.icon{font-size:18px!important}
+  .top-bar .back-btn{width:auto!important;display:inline-block!important;margin:0!important;
+    padding:8px 12px!important;font-size:14px!important}
+
+  .section-content{padding:12px!important;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+  /* عناصر التحكم: عمود واحد بعرض كامل */
+  .controls{display:flex!important;flex-direction:column;gap:10px;align-items:stretch;text-align:right}
+  .controls label{display:block;width:100%;font-weight:bold}
+  .controls input,.controls select,.controls button{
+    width:100%!important;box-sizing:border-box;margin:4px 0 0!important;
+    font-size:16px!important;min-height:46px;display:block}
+  .controls button{margin-top:0!important}
+
+  /* الجداول */
+  table{font-size:14px}
+  th,td{padding:8px 6px!important}
+  .section-content td button{width:auto!important;display:inline-block!important;margin:0!important;
+    padding:8px 14px!important;font-size:15px!important;min-height:40px}
+  .admin-list,.student-editor-card{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .admin-list table,#adminRecordsView table{min-width:640px}
+
+  /* لوحة الإدارة */
+  .admin-dashboard{padding:10px!important}
+  .admin-card{padding:18px!important;font-size:18px!important}
+  .admin-toolbar{display:flex!important;flex-direction:column;align-items:stretch}
+  .admin-toolbar>*{width:100%!important;margin:4px 0!important;box-sizing:border-box;min-height:44px;font-size:16px}
+  .admin-actions button{margin:4px 0}
+  .whatsapp-quota-card{padding:14px 16px!important}
+  .whatsapp-quota-number{font-size:26px!important}
+
+  /* الإشعار */
+  #teacherSendToast{top:10px!important;min-width:0!important;width:92vw;max-width:92vw!important;
+    font-size:15px!important;padding:12px 14px!important;box-sizing:border-box}
+
+  /* بطاقة رابط المدرسة */
+  #schoolLinkGate{padding:14px!important}
+  #schoolLinkGate .gate-card{padding:24px 18px!important}
+  #schoolLinkGate .gate-icon{font-size:48px!important}
+}
 </style>
 <style>
 /* ===== محرر قوائم الطلاب ===== */
@@ -800,11 +860,32 @@ function startWhatsAppQuotaLiveCountdown(pending) {
   }, intervalMs);
 }
 
-function finishWhatsAppQuotaFromResult(result, pending) {
-  if (result && Number(result.messagesRemaining) === 0) {
+function isSchoolBalanceEnded(result) {
+  return !!(result && (
+    result.balanceEnded === true ||
+    (result.messagesRemaining !== undefined && result.messagesRemaining !== null &&
+     Number(result.messagesRemaining) === 0)
+  ));
+}
+
+function sendResultToastText(baseText, result) {
+  if (!isSchoolBalanceEnded(result)) return baseText;
+  const notSent = Array.isArray(result.results)
+    ? result.results.filter(r => r && r.noBalance).length : 0;
+  return baseText +
+    (notSent ? ` | لم تُرسل بسبب الرصيد: ${notSent}` : '') +
+    ' — ⚠️ انتهى رصيد الرسائل، وسيتم تعطيل الرابط الآن.';
+}
+
+function scheduleSchoolBalanceBlock(result) {
+  if (!isSchoolBalanceEnded(result)) return;
+  // نترك الإشعار يظهر ثم نقفل الرابط
+  setTimeout(() => {
     showSchoolLinkBlocked('انتهى رصيد رسائل WhatsApp لهذه المدرسة، وتم تعطيل الرابط تلقائيًا.');
-    return;
-  }
+  }, 6000);
+}
+
+function finishWhatsAppQuotaFromResult(result, pending) {
   if (WHATSAPP_QUOTA_STATE.timer) {
     clearInterval(WHATSAPP_QUOTA_STATE.timer);
     WHATSAPP_QUOTA_STATE.timer = null;
@@ -818,6 +899,15 @@ function finishWhatsAppQuotaFromResult(result, pending) {
 
     if (Number.isFinite(WHATSAPP_QUOTA_STATE.used)) {
       WHATSAPP_QUOTA_STATE.used += sent;
+    }
+  }
+
+  // الرقم القادم من السيرفر هو الأدق
+  if (result && result.messagesRemaining !== undefined && result.messagesRemaining !== null &&
+      Number.isFinite(Number(result.messagesRemaining))) {
+    WHATSAPP_QUOTA_STATE.remaining = Math.max(0, Number(result.messagesRemaining));
+    if (Number(WHATSAPP_QUOTA_STATE.limit) > 0) {
+      WHATSAPP_QUOTA_STATE.used = Math.max(0, Number(WHATSAPP_QUOTA_STATE.limit) - WHATSAPP_QUOTA_STATE.remaining);
     }
   }
 
@@ -2591,7 +2681,12 @@ async function sendSelectedAdminRecords() {
 
     setAdminSendingUI(false);
 
-    showTeacherToast(`📱 نتيجة الإرسال: تم الإرسال: ${sent} | فشل: ${failed}`);
+    showTeacherToast(
+      sendResultToastText(`📱 نتيجة الإرسال: تم الإرسال: ${sent} | فشل: ${failed}`, result),
+      isSchoolBalanceEnded(result),
+      isSchoolBalanceEnded(result) ? 6000 : undefined
+    );
+    scheduleSchoolBalanceBlock(result);
 
   } catch (err) {
     console.error(err);
@@ -2637,7 +2732,12 @@ async function selectAndSendAllPending() {
     renderAdminRecords();
 
     setAdminSendingUI(false);
-    showTeacherToast(`📱 تم الإرسال: ${result.sent || 0} | فشل: ${result.failed || 0}`);
+    showTeacherToast(
+      sendResultToastText(`📱 تم الإرسال: ${result.sent || 0} | فشل: ${result.failed || 0}`, result),
+      isSchoolBalanceEnded(result),
+      isSchoolBalanceEnded(result) ? 6000 : undefined
+    );
+    scheduleSchoolBalanceBlock(result);
   } catch (err) {
     console.error(err);
     setWhatsAppQuotaSending(false, pending.length, 0);
