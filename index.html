@@ -1059,6 +1059,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await resolveSchoolLink();
       applySchoolSettings();
       loadLocalStudentLists();
+      pullStudentListsFromServer();
     } catch (e) {
       console.error(e);
       return;
@@ -1145,6 +1146,66 @@ function studentListKey(grade, section) {
 function saveLocalStudentLists() {
   localStorage.setItem(schoolStorageKey('mawalah_student_lists_v2'), JSON.stringify(localStudentLists));
   refreshGradeSelectors();
+  pushStudentListsToServer();
+}
+
+/* =========================================================
+   مزامنة قوائم الطلاب مع السيرفر (Apps Script) لكل مدرسة
+   حتى تظهر القوائم والفصول لجميع معلمي المدرسة على أي جهاز
+   ========================================================= */
+let _studentListsPushTimer = null;
+
+function pushStudentListsToServer() {
+  if (!schoolHasLinkContext()) return;
+  clearTimeout(_studentListsPushTimer);
+  _studentListsPushTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(ADMIN_WEBAPP_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+          action: 'saveStudentLists',
+          ...schoolRequestFields(),
+          lists: localStudentLists
+        }),
+        cache: 'no-store',
+        redirect: 'follow'
+      });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error || 'تعذر حفظ القوائم على السيرفر');
+    } catch (err) {
+      console.error('student lists sync failed', err);
+      showTeacherToast('⚠️ تم حفظ القوائم على هذا الجهاز فقط، تعذر حفظها على السيرفر: ' + (err.message || err), true);
+    }
+  }, 600);
+}
+
+async function pullStudentListsFromServer() {
+  if (!schoolHasLinkContext()) return;
+  try {
+    const q = SCHOOL_LINK_CONTEXT.code
+      ? `&s=${encodeURIComponent(SCHOOL_LINK_CONTEXT.code)}`
+      : `&school=${encodeURIComponent(SCHOOL_LINK_CONTEXT.schoolId)}&key=${encodeURIComponent(SCHOOL_LINK_CONTEXT.key)}`;
+    const res = await fetch(`${ADMIN_WEBAPP_URL}?action=getStudentLists${q}&_=${Date.now()}`, {cache: 'no-store'});
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'تعذر تحميل القوائم');
+
+    const remote = (result.lists && typeof result.lists === 'object') ? result.lists : {};
+
+    if (Object.keys(remote).length) {
+      // السيرفر هو المرجع: نعرض قوائم المدرسة على هذا الجهاز
+      localStudentLists = remote;
+      localStorage.setItem(schoolStorageKey('mawalah_student_lists_v2'), JSON.stringify(localStudentLists));
+      refreshGradeSelectors();
+      renderStudentListsSummary();
+      renderStudentListsSummaryInline();
+    } else if (Object.keys(localStudentLists || {}).length) {
+      // السيرفر فارغ وهذا الجهاز عنده قوائم (رفع سابق): نرفعها مرة واحدة
+      pushStudentListsToServer();
+    }
+  } catch (err) {
+    console.error('student lists pull failed', err);
+  }
 }
 
 function loadLocalStudentLists() {
@@ -1253,7 +1314,7 @@ async function loadCSVData(type) {
       .map((s, i) => ({
         id: i + 1,
         phone: s.phone || '',
-        name: s.name || '',
+        name: fixArabicNameLetterGaps(s.name || ''),
         grade: grade,
         section: section,
         schoolId: s.schoolId || '',
@@ -1427,6 +1488,34 @@ function extractSectionNumber(text) {
   return '1';
 }
 
+/* =========================================================
+   إصلاح الأحرف الناقصة في أسماء الطلاب (مشكلة شائعة في بعض
+   قوالب PDF الحكومية حيث يسقط حرف الألف داخل تركيبة "لا" عند
+   الطباعة، فتظهر كلمات مثل "هلال" باسم "هلل" و"عبدالله" باسم "عبدا")
+   ========================================================= */
+function fixArabicNameLetterGaps(name) {
+  if (!name) return name;
+
+  const NOT_ARABIC_LETTER = '(?![\\u0621-\\u064A])';
+  const NOT_ARABIC_LETTER_BEFORE = '(?<![\\u0621-\\u064A])';
+
+  let fixed = name;
+
+  // "هلل" (بدون ألف) => "هلال"
+  fixed = fixed.replace(
+    new RegExp(NOT_ARABIC_LETTER_BEFORE + 'هلل' + NOT_ARABIC_LETTER, 'g'),
+    'هلال'
+  );
+
+  // "عبدا" (بدون لله) => "عبدالله"
+  fixed = fixed.replace(
+    new RegExp(NOT_ARABIC_LETTER_BEFORE + 'عبدا' + NOT_ARABIC_LETTER, 'g'),
+    'عبدالله'
+  );
+
+  return fixed;
+}
+
 async function extractStudentsFromPDF(file) {
   if (!window.pdfjsLib) {
     throw new Error('مكتبة قراءة PDF لم تُحمّل. تأكد من اتصال الإنترنت.');
@@ -1514,6 +1603,8 @@ async function extractStudentsFromPDF(file) {
       name = name
         .replace(/^(عماني|تونس|سعودي|إماراتي|بحريني|كويتي|قطري)\s+/, '')
         .trim();
+
+      name = fixArabicNameLetterGaps(name);
 
       if (!name || name.length < 3) continue;
 
@@ -2842,7 +2933,7 @@ function renderStudentEditor() {
   studentEditorDraft = students.map(s => ({
     serial: String(s.serial || ''),
     schoolId: String(s.schoolId || ''),
-    name: String(s.name || ''),
+    name: fixArabicNameLetterGaps(String(s.name || '')),
     phone: String(s.phone || '')
   }));
 
