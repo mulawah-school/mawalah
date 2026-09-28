@@ -1440,6 +1440,13 @@ async function loadCSVData(type) {
     return;
   }
 
+  // في روابط المدارس لا نجلب أبدًا بيانات من جدول المدرسة الأصلية (منعًا لاختلاط أسماء مدارس مختلفة)
+  if (schoolHasLinkContext()) {
+    state[type].students = [];
+    showTeacherToast('لا توجد قائمة طلاب لهذا الصف والشعبة في هذه المدرسة.', true);
+    return;
+  }
+
   try {
     let combinedText = '';
     for (const url of SHEET_URLS) {
@@ -2671,9 +2678,13 @@ async function sendSelectedAdminRecords() {
     const failed = Number(result.failed || 0);
     finishWhatsAppQuotaFromResult(result, pending);
 
-    adminRecords = Array.isArray(result.records)
+    adminRecords = (!schoolHasLinkContext() && Array.isArray(result.records))
       ? result.records.map(canonicalizeRecordForPDF)
       : adminRecords;
+    if (schoolHasLinkContext()) {
+      // في روابط المدارس نعيد تحميل سجلات هذه المدرسة فقط من السيرفر
+      try { await loadAdminRecords(); } catch (e) { console.error(e); }
+    }
     adminSelectedIds = new Set();
 
     updateAdminCardsCounts();
@@ -2724,9 +2735,13 @@ async function selectAndSendAllPending() {
     if (!result.success) throw new Error(result.error || 'فشل الإرسال');
     finishWhatsAppQuotaFromResult(result, pending);
 
-    adminRecords = Array.isArray(result.records)
+    adminRecords = (!schoolHasLinkContext() && Array.isArray(result.records))
       ? result.records.map(canonicalizeRecordForPDF)
       : adminRecords;
+    if (schoolHasLinkContext()) {
+      // في روابط المدارس نعيد تحميل سجلات هذه المدرسة فقط من السيرفر
+      try { await loadAdminRecords(); } catch (e) { console.error(e); }
+    }
     adminSelectedIds = new Set();
     updateAdminCardsCounts();
     renderAdminRecords();
