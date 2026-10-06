@@ -3009,7 +3009,7 @@ function renderAdminRecords() {
     return `
       <tr${expired ? ' style="opacity:.75;"' : ''}>
         <td style="text-align:center;">
-          <input type="checkbox" ${checked} ${expired ? 'disabled title="انتهى وقت إرسال هذه الرسالة"' : (isPeriodHeld(r) ? 'disabled title="قالب رسالة غياب الحصص لم يُضف بعد"' : '')}
+          <input type="checkbox" ${checked} ${expired ? 'title="انتهى وقت إرسال هذه الرسالة، ويمكن حذفها"' : (isPeriodHeld(r) ? 'title="لا تُرسل حتى يُضاف قالب الحصص، ويمكن حذفها"' : '')}
             onchange="toggleAdminRecord('${escapeJs(r.id)}', this.checked)">
         </td>
         <td>${i + 1}</td>
@@ -3059,7 +3059,7 @@ function toggleAdminRecord(id, checked) {
 
 function selectAllAdminRecords(select) {
   getVisibleAdminRecords().forEach(r => {
-    if (select && (isExpiredRecord(r) || isPeriodHeld(r))) return;
+    // التحديد يشمل كل السجلات (للحذف)؛ الإرسال يتجاوز المنتهية وغياب الحصص تلقائيًا
     if (select) adminSelectedIds.add(String(r.id));
     else adminSelectedIds.delete(String(r.id));
   });
