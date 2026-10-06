@@ -535,7 +535,6 @@ html.school-link-locked #schoolLinkGate{
             <button onclick="sendSelectedAdminRecords()" style="background:#16a34a;color:#fff;">📱 إرسال المحدد</button>
             <button onclick="selectAndSendAllPending()" style="background:#059669;color:#fff;">📱 إرسال جميع غير المرسلة</button>
             <button onclick="deleteSelectedAdminRecords()" style="background:#dc2626;color:#fff;">🗑️ حذف المحدد</button>
-            <button onclick="copyAbsenceForPortal()" style="background:#7c3aed;color:#fff;">📤 نسخ الغائبين للبوابة</button>
             <button onclick="exportSelectedStudentPDF()" style="background:#475569;color:#fff;">📄 تقرير الطالب PDF</button>
             <button onclick="exportAdminListPDF()" style="background:#0077b6;color:#fff;">📄 طباعة / PDF القائمة</button>
             <button onclick="loadAdminRecords()" style="background:#64748b;color:#fff;">🔄 تحديث</button>
@@ -2967,63 +2966,6 @@ function getVisibleAdminRecords() {
       return haystack.includes(q);
     })
     .sort(compareRecordsByClass);
-}
-
-/* =========================================================
-   نسخ أسماء الغائبين بصيغة تقرؤها أداة البوابة التعليمية
-   (المحدد إن وُجد، وإلا كل ما يظهر في قائمة الغياب الحالية)
-   ========================================================= */
-async function copyAbsenceForPortal() {
-  const source = adminSelectedIds.size
-    ? adminRecords.filter(r => adminSelectedIds.has(String(r.id)))
-    : getVisibleAdminRecords();
-
-  // البوابة تسجّل غياب اليوم الكامل فقط؛ غياب الحصص لا يُنسخ
-  const rows = source.filter(r =>
-    r.type === 'Abs' && !isPeriodRecord(r) && r.studentName && r.studentName !== 'لا يوجد غياب'
-  );
-
-  if (!rows.length) {
-    showTeacherToast('لا توجد سجلات غياب يوم لنسخها. افتح قسم الغياب أو حدّد السجلات.', true, 4000);
-    return;
-  }
-
-  const groups = {};
-  rows.forEach(r => {
-    const key = String(r.date || '') + '|' + String(r.className || '').trim();
-    (groups[key] = groups[key] || new Set()).add(String(r.pdfStudentName || r.studentName).trim());
-  });
-
-  const lines = ['#MOE-ABSENCE-V1'];
-  let total = 0;
-  Object.keys(groups).sort((ka, kb) => {
-    const [da, ca] = ka.split('|'), [db, cb] = kb.split('|');
-    const [ga, sa] = classOrderParts(ca), [gb, sb] = classOrderParts(cb);
-    return da.localeCompare(db) || (ga - gb) || (sa - sb);
-  }).forEach(key => {
-    const [date, cls] = key.split('|');
-    lines.push('## ' + date + ' | ' + cls);
-    groups[key].forEach(name => { lines.push(name); total++; });
-  });
-  const text = lines.join('\n');
-
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (e) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;';
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-  }
-
-  showTeacherToast(
-    '✅ تم نسخ ' + total + ' طالب غائب (' + Object.keys(groups).length + ' صف/شعبة). الصقهم في أداة البوابة.',
-    false,
-    4500
-  );
 }
 
 function renderAdminRecords() {
