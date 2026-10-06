@@ -239,6 +239,7 @@ img{max-width:100%;height:auto}
 </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style id="schoolLinkGateStyle">
 html.school-link-locked body > *:not(#schoolLinkGate){
@@ -338,12 +339,12 @@ html.school-link-locked #schoolLinkGate{
 
       <div id="adminPanel" style="display:none;">
         <div style="max-width:850px;margin:auto;background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.12);">
-          <h3>📄 رفع قوائم الطلاب بصيغة PDF</h3>
+          <h3>📄 رفع قوائم الطلاب (Excel أو PDF)</h3>
           <p style="color:#555;line-height:1.8;">
-            ارفع ملفًا أو عدة ملفات. سيتم قراءة الصف والشعبة والاسم ورقم الهاتف تلقائيًا من القوائم.
+            ارفع ملف Excel (.xlsx أو .xls) أو عدة ملفات. سيتم قراءة الصف والشعبة والاسم ورقم الهاتف تلقائيًا من القوائم. إن لم يظهر الصف داخل الملف فاكتبه في اسم الملف، مثل: الخامس_2.xlsx. ملفات PDF ما زالت مدعومة لكن Excel أدق في الأسماء.
             يمكنك رفع قائمة جديدة لنفس الصف والشعبة لاستبدال القائمة السابقة.
           </p>
-          <input id="pdfFiles" type="file" accept="application/pdf,.pdf" multiple
+          <input id="pdfFiles" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,.pdf,application/pdf" multiple
                  style="padding:10px;width:90%;max-width:600px;">
           <br><br>
           <button onclick="importPDFLists()" style="background:#0077b6;color:#fff;">📥 استيراد القوائم</button>
@@ -495,10 +496,10 @@ html.school-link-locked #schoolLinkGate{
           </p>
 
           <div style="text-align:center;">
-            <input id="pdfFilesInline" type="file" accept="application/pdf,.pdf" multiple
+            <input id="pdfFilesInline" type="file" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,.pdf,application/pdf" multiple
                    style="padding:10px;width:90%;max-width:600px;">
             <br><br>
-            <button onclick="importPDFListsInline()" style="background:#0077b6;color:#fff;">📥 استيراد قوائم PDF</button>
+            <button onclick="importPDFListsInline()" style="background:#0077b6;color:#fff;">📥 استيراد القوائم</button>
             <button onclick="clearStudentLists()" style="background:#dc2626;color:#fff;">🗑️ حذف جميع القوائم</button>
           </div>
 
@@ -530,6 +531,7 @@ html.school-link-locked #schoolLinkGate{
             <button onclick="sendSelectedAdminRecords()" style="background:#16a34a;color:#fff;">📱 إرسال المحدد</button>
             <button onclick="selectAndSendAllPending()" style="background:#059669;color:#fff;">📱 إرسال جميع غير المرسلة</button>
             <button onclick="deleteSelectedAdminRecords()" style="background:#dc2626;color:#fff;">🗑️ حذف المحدد</button>
+            <button onclick="copyAbsenceForPortal()" style="background:#7c3aed;color:#fff;">📤 نسخ الغائبين للبوابة</button>
             <button onclick="exportSelectedStudentPDF()" style="background:#475569;color:#fff;">📄 تقرير الطالب PDF</button>
             <button onclick="exportAdminListPDF()" style="background:#0077b6;color:#fff;">📄 طباعة / PDF القائمة</button>
             <button onclick="loadAdminRecords()" style="background:#64748b;color:#fff;">🔄 تحديث</button>
@@ -1633,6 +1635,277 @@ function fixArabicNameLetterGaps(name) {
   return fixed;
 }
 
+/* =========================================================
+   استيراد قوائم الطلاب من ملفات Excel / CSV
+   - يقرأ الأعمدة بحسب عناوينها، وإن اختلفت المواضع يلتقط الحقول بأنماطها
+     (رقم مدرسي 10-14 رقمًا، هاتف 8 أرقام، الاسم = الخلية الأكثر كلمات عربية)
+   - الصف والشعبة: من أعمدة الصف/الشعبة إن وُجدت، وإلا من رأس التقرير
+     (الصف : الخامس / 2)، وإلا من اسم الملف أو اسم الورقة (مثل أول_1)
+   ========================================================= */
+
+const XL_GRADE_ALIASES = [
+  [11, ['الحادي عشر', 'حادي عشر']],
+  [12, ['الثاني عشر', 'ثاني عشر']],
+  [1, ['الاول', 'اول', 'الول']],
+  [2, ['الثاني', 'ثاني']],
+  [3, ['الثالث', 'ثالث']],
+  [4, ['الرابع', 'رابع']],
+  [5, ['الخامس', 'خامس']],
+  [6, ['السادس', 'سادس']],
+  [7, ['السابع', 'سابع']],
+  [8, ['الثامن', 'ثامن']],
+  [9, ['التاسع', 'تاسع']],
+  [10, ['العاشر', 'عاشر']]
+];
+
+const XL_NOT_NAME = /الاسم|اسم الطالب|رقم الصفحه|قوائم الطلاب|السنه الدراسيه|رمز المدرسه|المديريه|وزاره|سلطنه|محافظه|الصفوف|المنطقه|الجنسيه|حاله القيد|الهاتف|الرقم المدرسي/;
+const XL_OTHER_VALUES = new Set(['عماني', 'عمانيه', 'مستجد', 'مستجده', 'منقول', 'منقوله', 'مستمر', 'مستمره']);
+
+function xlDigits(s) {
+  return String(s == null ? '' : s)
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+}
+
+function xlCell(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return Number.isFinite(v) ? (Number.isInteger(v) ? v.toFixed(0) : String(v)) : '';
+  return xlDigits(v).replace(/[\u200e\u200f\u202a-\u202e\ufeff]/g, '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function xlNorm(s) {
+  return xlDigits(s)
+    .replace(/[\u200e\u200f\u202a-\u202e\ufeff]/g, '')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function xlArabicTokens(s) {
+  return xlNorm(s).split(' ').filter(t => /[\u0600-\u06FF]/.test(t));
+}
+
+function xlIsName(c) {
+  if (!c || /\d{5,}/.test(c)) return false;
+  const n = xlNorm(c);
+  if (XL_NOT_NAME.test(n) || XL_OTHER_VALUES.has(n)) return false;
+  const t = xlArabicTokens(c);
+  return t.length >= 2 && t.join('').length >= 6;
+}
+
+function xlGradeFromText(text) {
+  const n = ' ' + xlNorm(text) + ' ';
+  const dm = n.match(/^\s*(\d{1,2})\s*$/);
+  if (dm && Number(dm[1]) >= 1 && Number(dm[1]) <= 12) return Number(dm[1]);
+  for (const [num, aliases] of XL_GRADE_ALIASES) {
+    for (const a of aliases) {
+      if (n.includes(' ' + a + ' ')) return num;
+    }
+  }
+  return 0;
+}
+
+function xlDetectHeader(cells) {
+  const h = {};
+  cells.forEach((c, i) => {
+    const n = xlNorm(c);
+    if (!n) return;
+    if (n === 'الاسم' || n === 'اسم' || n.includes('اسم الطالب')) h.name = i;
+    else if (n.includes('الرقم المدرسي') || n.includes('رقم الطالب') || n.includes('الرقم الاكاديمي')) h.schoolId = i;
+    else if (n.includes('الهاتف') || n.includes('جوال') || n.includes('موبايل') || n.includes('نقال')) h.phone = i;
+    else if (n === 'الصف') h.grade = i;
+    else if (n === 'الشعبه' || n === 'الفصل') h.section = i;
+    else if (n === 'م' || n === '#' || n === 'مسلسل' || n.includes('التسلسل')) h.serial = i;
+    else if (n === 'الجنسيه' || n === 'حاله القيد' || n === 'المنطقه السكنيه' || n === 'الحاله') (h.other = h.other || []).push(i);
+  });
+  const others = ['schoolId', 'phone', 'grade', 'section', 'serial'].filter(k => h[k] !== undefined).length;
+  return (h.name !== undefined && others >= 1) ? h : null;
+}
+
+function xlPhoneFrom(text) {
+  const s = xlDigits(text);
+  const m = s.replace(/[\s\-]/g, '').match(/(?:\+?968)?(\d{8})(?!\d)/);
+  return m ? m[1] : '';
+}
+
+function xlParseStudentRow(cells, hdr, hasIds) {
+  const otherCols = new Set((hdr && hdr.other) || []);
+  let name = '';
+  if (hdr && hdr.name !== undefined && xlIsName(cells[hdr.name])) name = cells[hdr.name];
+  if (!name) {
+    const cands = cells.map((c, i) => ({ c, i })).filter(x => !otherCols.has(x.i) && xlIsName(x.c));
+    cands.sort((a, b) => xlArabicTokens(b.c).length - xlArabicTokens(a.c).length ||
+      xlNorm(b.c).length - xlNorm(a.c).length);
+    if (cands.length) name = cands[0].c;
+  }
+  if (!name) return null;
+
+  let schoolId = '';
+  if (hdr && hdr.schoolId !== undefined && /^\d{8,14}$/.test(cells[hdr.schoolId] || '')) schoolId = cells[hdr.schoolId];
+  if (!schoolId) schoolId = cells.find(c => /^\d{10,14}$/.test(c)) || '';
+
+  let phone = '';
+  if (hdr && hdr.phone !== undefined) phone = xlPhoneFrom(cells[hdr.phone]);
+  if (!phone) {
+    const pc = cells.find(c => c !== schoolId && /^[\d\s+\-]+$/.test(c) && xlPhoneFrom(c) && xlDigits(c).replace(/\D/g, '').length <= 11);
+    if (pc) phone = xlPhoneFrom(pc);
+  }
+
+  let serial = '';
+  if (hdr && hdr.serial !== undefined && /^\d{1,3}$/.test(cells[hdr.serial] || '')) serial = cells[hdr.serial];
+  if (!serial) serial = cells.find(c => /^\d{1,3}$/.test(c)) || '';
+
+  if (hasIds) { if (!schoolId) return null; }
+  else if (!(serial || phone) || xlArabicTokens(name).length < 3) return null;
+
+  let grade = 0, section = '';
+  if (hdr && hdr.grade !== undefined) grade = xlGradeFromText(cells[hdr.grade]);
+  if (hdr && hdr.section !== undefined) {
+    const sm = (cells[hdr.section] || '').match(/(\d{1,2})(?!\d)/);
+    if (sm) section = String(Number(sm[1]));
+  }
+  return { name: name.replace(/\s+/g, ' ').trim(), schoolId, phone, serial, grade, section };
+}
+
+function xlDetectGradeSection(cells) {
+  const gradeAlt = XL_GRADE_ALIASES.flatMap(([, al]) => al).sort((a, b) => b.length - a.length).join('|');
+  const re1 = new RegExp('(?:^|\\s)الصف(?!وف)\\s*[:：\\-]?\\s*(' + gradeAlt + '|\\d{1,2})(?!\\d)(?:\\s*[\\/\\-–]\\s*(\\d{1,2})(?!\\d)|\\s*(\\d{1,2})(?!\\d)\\s*[\\/\\-–])?');
+  const re2 = /(?:^|\s)(?:الشعبه|الفصل)\s*[:：\-]?\s*(\d{1,2})(?!\d)/;
+  const joins = [cells.filter(Boolean).join(' '), cells.filter(Boolean).reverse().join(' ')];
+  const out = { grade: 0, section: '' };
+  for (const j of joins) {
+    const n = xlNorm(j);
+    const m = n.match(re1);
+    if (m && !out.grade) {
+      out.grade = xlGradeFromText(m[1]);
+      const sec = m[2] || m[3];
+      if (sec) out.section = String(Number(sec));
+    }
+    const m2 = n.match(re2);
+    if (m2 && !out.section) out.section = String(Number(m2[1]));
+    if (out.grade) break;
+  }
+  return out;
+}
+
+function xlGuessFromName(name) {
+  const base = xlNorm(String(name || '').replace(/\.[A-Za-z0-9]{2,5}$/, '').replace(/[_\-.]+/g, ' '));
+  const grade = xlGradeFromText(base.replace(/\d+/g, ' '));
+  const nums = (base.match(/\d{1,2}(?!\d)/g) || []).map(Number);
+  let g = grade, s = '';
+  if (g) { if (nums.length) s = String(nums[0]); }
+  else if (nums.length >= 2) { g = nums[0]; s = String(nums[1]); }
+  return { grade: g >= 1 && g <= 12 ? g : 0, section: s };
+}
+
+/* rows: مصفوفة صفوف، كل صف مصفوفة قيم. يعيد مجموعات [{grade, section, students}] */
+function xlParseRows(rows, opts) {
+  opts = opts || {};
+  const clean = (rows || []).map(r => (r || []).map(xlCell));
+  const hasIds = clean.some(r => r.some(c => /^\d{10,14}$/.test(c)) && r.some(c => xlIsName(c)));
+  let hdr = null;
+  const ctx = { grade: 0, section: '' };
+  const groups = new Map();
+
+  for (const cells of clean) {
+    if (!cells.some(c => c !== '')) continue;
+    const h = xlDetectHeader(cells);
+    if (h) { hdr = h; continue; }
+    const st = xlParseStudentRow(cells, hdr, hasIds);
+    if (st) {
+      const grade = st.grade || ctx.grade || opts.defaultGrade || 0;
+      const section = st.section || ctx.section || opts.defaultSection || '1';
+      const key = grade + '|' + section;
+      if (!groups.has(key)) groups.set(key, { grade, section, students: [] });
+      groups.get(key).students.push(st);
+      continue;
+    }
+    const f = xlDetectGradeSection(cells);
+    if (f.grade) { ctx.grade = f.grade; ctx.section = f.section || ''; }
+    else if (f.section) ctx.section = f.section;
+  }
+
+  return Array.from(groups.values()).map(g => {
+    const seen = new Set(), uniq = [];
+    g.students.forEach(s => {
+      const k = (s.schoolId || s.phone || '') + '|' + s.name;
+      if (!seen.has(k)) { seen.add(k); uniq.push(s); }
+    });
+    uniq.sort((a, b) => (Number(a.serial) || 1e9) - (Number(b.serial) || 1e9));
+    return { grade: g.grade, section: g.section, students: uniq };
+  });
+}
+
+async function extractStudentGroupsFromExcel(file) {
+  if (!window.XLSX) throw new Error('مكتبة قراءة Excel لم تُحمّل. تأكد من اتصال الإنترنت.');
+  const lower = (file.name || '').toLowerCase();
+  let wb;
+  if (lower.endsWith('.csv')) wb = XLSX.read(await file.text(), { type: 'string' });
+  else wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+
+  const fileDef = xlGuessFromName(file.name);
+  const merged = new Map();
+
+  wb.SheetNames.forEach(sn => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' });
+    const sd = xlGuessFromName(sn);
+    const defaultGrade = sd.grade || fileDef.grade;
+    const defaultSection = sd.grade ? sd.section : (fileDef.section || sd.section);
+    xlParseRows(rows, { defaultGrade, defaultSection }).forEach(g => {
+      const key = g.grade + '|' + g.section;
+      if (!merged.has(key)) merged.set(key, { grade: g.grade, section: g.section, students: [] });
+      merged.get(key).students.push(...g.students);
+    });
+  });
+
+  const out = [];
+  merged.forEach(g => {
+    if (!g.grade) {
+      throw new Error('لم أستطع تحديد الصف من الملف. اكتب الصف في اسم الملف، مثل: الخامس_2.xlsx');
+    }
+    out.push({
+      grade: String(g.grade),
+      section: String(g.section || '1'),
+      students: g.students.map((s, i) => ({
+        phone: s.phone || '',
+        name: s.name,
+        schoolId: s.schoolId || '',
+        serial: s.serial || String(i + 1)
+      })),
+      fileName: file.name,
+      updatedAt: new Date().toLocaleString('ar-OM')
+    });
+  });
+
+  if (!out.length) {
+    throw new Error('فُتح الملف لكن لم أجد أسماء طلاب. تأكد أن فيه عمودي الاسم والرقم المدرسي.');
+  }
+  return out;
+}
+
+async function extractStudentGroups(file) {
+  const n = (file.name || '').toLowerCase();
+  if (n.endsWith('.pdf') || file.type === 'application/pdf') return [await extractStudentsFromPDF(file)];
+  if (/\.(xlsx|xlsm|xls|csv)$/.test(n)) return extractStudentGroupsFromExcel(file);
+  throw new Error('نوع الملف غير مدعوم. استخدم Excel (.xlsx أو .xls) أو CSV أو PDF.');
+}
+
+function summarizeImported(groups, acc) {
+  groups.forEach(r => {
+    acc.lists++;
+    acc.students += r.students.length;
+    acc.noPhone += r.students.filter(s => !s.phone).length;
+    acc.details.push(r.grade + '/' + r.section + ': ' + r.students.length + ' طالب');
+  });
+}
+
+function importStatusHtml(acc, errors) {
+  return (acc.lists ? `✅ تم استيراد <strong>${acc.lists}</strong> قائمة (${acc.students} طالب).` : '') +
+    (acc.details.length ? `<br><small>${acc.details.join(' — ')}</small>` : '') +
+    (acc.noPhone ? `<br><span style="color:#b45309;">⚠️ ${acc.noPhone} طالب بدون رقم هاتف. أضف أرقامهم من "تعديل قوائم الطلاب".</span>` : '') +
+    (errors.length ? `<br><span style="color:#dc2626;">❌ ${errors.join('<br>')}</span>` : '');
+}
+
 async function extractStudentsFromPDF(file) {
   if (!window.pdfjsLib) {
     throw new Error('مكتبة قراءة PDF لم تُحمّل. تأكد من اتصال الإنترنت.');
@@ -1776,27 +2049,22 @@ async function importPDFLists() {
   const files = Array.from(input.files || []);
 
   if (!files.length) {
-    showTeacherToast('اختر ملف PDF واحدًا على الأقل.', true);
+    showTeacherToast('اختر ملفًا واحدًا على الأقل.', true);
     return;
   }
 
-  status.textContent = '⏳ جاري قراءة ملفات PDF...';
+  status.textContent = '⏳ جاري قراءة الملفات...';
 
-  let ok = 0;
+  const acc = { lists: 0, students: 0, noPhone: 0, details: [] };
   const errors = [];
 
   for (const file of files) {
     try {
-      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        throw new Error('الملف ليس PDF.');
-      }
-
-      const result = await extractStudentsFromPDF(file);
-      const key = studentListKey(result.grade, result.section);
-
-      localStudentLists[key] = result;
-      ok++;
-
+      const groups = await extractStudentGroups(file);
+      groups.forEach(result => {
+        localStudentLists[studentListKey(result.grade, result.section)] = result;
+      });
+      summarizeImported(groups, acc);
     } catch (err) {
       console.error(file.name, err);
       errors.push(`${file.name}: ${err.message}`);
@@ -1807,9 +2075,7 @@ async function importPDFLists() {
   renderStudentListsSummary();
   input.value = '';
 
-  status.innerHTML =
-    `✅ تم استيراد <strong>${ok}</strong> ملف/ملفات بنجاح.` +
-    (errors.length ? `<br><span style="color:#dc2626;">❌ ${errors.join('<br>')}</span>` : '');
+  status.innerHTML = importStatusHtml(acc, errors);
 }
 
 function renderStudentListsSummary() {
@@ -1823,7 +2089,7 @@ function renderStudentListsSummary() {
   });
 
   if (!keys.length) {
-    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;">لا توجد قوائم طلاب مستوردة حاليًا.</div>';
     return;
   }
 
@@ -2532,6 +2798,58 @@ function getVisibleAdminRecords() {
       return haystack.includes(q);
     })
     .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+}
+
+/* =========================================================
+   نسخ أسماء الغائبين بصيغة تقرؤها أداة البوابة التعليمية
+   (المحدد إن وُجد، وإلا كل ما يظهر في قائمة الغياب الحالية)
+   ========================================================= */
+async function copyAbsenceForPortal() {
+  const source = adminSelectedIds.size
+    ? adminRecords.filter(r => adminSelectedIds.has(String(r.id)))
+    : getVisibleAdminRecords();
+
+  const rows = source.filter(r =>
+    r.type === 'Abs' && r.studentName && r.studentName !== 'لا يوجد غياب'
+  );
+
+  if (!rows.length) {
+    showTeacherToast('لا توجد سجلات غياب لنسخها. افتح قسم الغياب أو حدّد السجلات.', true, 4000);
+    return;
+  }
+
+  const groups = {};
+  rows.forEach(r => {
+    const key = String(r.date || '') + '|' + String(r.className || '').trim();
+    (groups[key] = groups[key] || new Set()).add(String(r.pdfStudentName || r.studentName).trim());
+  });
+
+  const lines = ['#MOE-ABSENCE-V1'];
+  let total = 0;
+  Object.keys(groups).sort().forEach(key => {
+    const [date, cls] = key.split('|');
+    lines.push('## ' + date + ' | ' + cls);
+    groups[key].forEach(name => { lines.push(name); total++; });
+  });
+  const text = lines.join('\n');
+
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+
+  showTeacherToast(
+    '✅ تم نسخ ' + total + ' طالب غائب (' + Object.keys(groups).length + ' صف/شعبة). الصقهم في أداة البوابة.',
+    false,
+    4500
+  );
 }
 
 function renderAdminRecords() {
@@ -3279,21 +3597,22 @@ async function importPDFListsInline() {
   const files = Array.from(input.files || []);
 
   if (!files.length) {
-    showTeacherToast('اختر ملف PDF واحدًا على الأقل.', true);
+    showTeacherToast('اختر ملفًا واحدًا على الأقل.', true);
     return;
   }
 
-  status.textContent = '⏳ جاري قراءة ملفات PDF...';
+  status.textContent = '⏳ جاري قراءة الملفات...';
 
-  let ok = 0;
+  const acc = { lists: 0, students: 0, noPhone: 0, details: [] };
   const errors = [];
 
   for (const file of files) {
     try {
-      const result = await extractStudentsFromPDF(file);
-      const key = studentListKey(result.grade, result.section);
-      localStudentLists[key] = result;
-      ok++;
+      const groups = await extractStudentGroups(file);
+      groups.forEach(result => {
+        localStudentLists[studentListKey(result.grade, result.section)] = result;
+      });
+      summarizeImported(groups, acc);
     } catch (err) {
       console.error(file.name, err);
       errors.push(`${file.name}: ${err.message}`);
@@ -3305,9 +3624,7 @@ async function importPDFListsInline() {
   renderStudentListsSummary();
   input.value = '';
 
-  status.innerHTML =
-    `✅ تم استيراد <strong>${ok}</strong> قائمة بنجاح.` +
-    (errors.length ? `<br><span style="color:#dc2626;">❌ ${errors.join('<br>')}</span>` : '');
+  status.innerHTML = importStatusHtml(acc, errors);
 }
 
 function renderStudentListsSummaryInline() {
@@ -3321,7 +3638,7 @@ function renderStudentListsSummaryInline() {
   });
 
   if (!keys.length) {
-    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;text-align:center;">لا توجد قوائم PDF مستوردة حاليًا.</div>';
+    box.innerHTML = '<div style="padding:15px;background:#f8fafc;border-radius:10px;text-align:center;">لا توجد قوائم طلاب مستوردة حاليًا.</div>';
     return;
   }
 
