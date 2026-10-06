@@ -91,7 +91,7 @@ button:hover {
 .admin-list{background:#fff;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:15px;overflow:auto}
 .admin-list table{margin-top:0}
 .admin-actions button{margin:4px}
-.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.abs-mode-btn{opacity:.55}.abs-mode-btn.active{opacity:1;box-shadow:0 0 0 3px #86efac}#absPeriodSelect:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
+.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.violation-select{width:100%;max-width:460px;box-sizing:border-box;padding:8px;border-radius:10px;border:1px solid #cbd5e1;font-size:15px}.violation-select.has-violation{border-color:#dc2626;background:#fef2f2;font-weight:bold}.abs-mode-btn{opacity:.55}.abs-mode-btn.active{opacity:1;box-shadow:0 0 0 3px #86efac}#absPeriodSelect:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
 .student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
 #adminRecordsView{display:none !important}
 #adminRecordsView.admin-open{display:block !important}
@@ -2204,6 +2204,71 @@ function renderAbsence() {
 
 
 
+/* قائمة المخالفات (النصوص كما كانت تمامًا): مجموعة لها بنود فرعية + مخالفات مفردة */
+const VIOLATION_GROUPS = [
+  {
+    title: 'الإخلال بنظام الطابور أو الحصص الدراسية أو الأنشطة المدرسية',
+    subOptions: [
+      'النوم في أثناء الحصص أو الأنشطة المدرسية',
+      'الإهمال في أداء الواجبات أو الأنشطة المدرسية',
+      'عدم الإنصات لتوجيهات المعلم',
+      'التسبب في الإزعاج بالقرب من الصفوف الدراسية',
+      'عدم الالتزام بإحضار الكتب والدفاتر والأدوات المدرسية والملابس الرياضية',
+      'التأخر عن الحصص الدراسية أو الغياب'
+    ]
+  }
+];
+const VIOLATION_SINGLES = [
+  'الشجار مع زملائه والإساءة بالقول',
+  'تناول المأكولات أو المشروبات في غير الوقت المخصص أو مضغ العلكة',
+  'عدم المحافظة على النظافة أو المظهر الشخصي أو مرافق المدرسة',
+  'التأخر عن الحصة الدراسية'
+];
+
+function buildViolationSelect(studentId) {
+  const sel = document.createElement('select');
+  sel.className = 'violation-select';
+  sel.setAttribute('aria-label', 'المخالفة');
+
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '— اختر المخالفة —';
+  sel.appendChild(none);
+
+  VIOLATION_GROUPS.forEach(group => {
+    const og = document.createElement('optgroup');
+    og.label = group.title;
+    group.subOptions.forEach(text => {
+      const o = document.createElement('option');
+      o.value = text;
+      o.textContent = text;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+
+  VIOLATION_SINGLES.forEach(text => {
+    const o = document.createElement('option');
+    o.value = text;
+    o.textContent = text;
+    sel.appendChild(o);
+  });
+
+  const current = state.Viol.violations[studentId] || '';
+  sel.value = current;
+  if (sel.value !== current) sel.value = '';
+  sel.title = sel.value;
+
+  sel.onchange = () => {
+    if (sel.value) state.Viol.violations[studentId] = sel.value;
+    else delete state.Viol.violations[studentId];
+    sel.title = sel.value;
+    sel.classList.toggle('has-violation', !!sel.value);
+  };
+  sel.classList.toggle('has-violation', !!sel.value);
+  return sel;
+}
+
 function renderViolations() {
   const tbody = document.getElementById('studentsBodyViol');
   tbody.innerHTML = '';
@@ -2212,109 +2277,11 @@ function renderViolations() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${index + 1}</td>
-      <td>${student.name}</td>
+      <td>${escapeHtml(student.name)}</td>
     `;
 
     const tdViolation = document.createElement('td');
-
-    const mainViolations = [
-      {
-        title: 'الإخلال بنظام الطابور أو الحصص الدراسية أو الأنشطة المدرسية',
-        subOptions: [
-          'النوم في أثناء الحصص أو الأنشطة المدرسية',
-          'الإهمال في أداء الواجبات أو الأنشطة المدرسية',
-          'عدم الإنصات لتوجيهات المعلم',
-          'التسبب في الإزعاج بالقرب من الصفوف الدراسية',
-          'عدم الالتزام بإحضار الكتب والدفاتر والأدوات المدرسية والملابس الرياضية',
-          'التأخر عن الحصص الدراسية أو الغياب'
-        ]
-      },
-      {
-        title: 'الشجار مع زملائه والإساءة بالقول'
-      },
-      {
-        title: 'تناول المأكولات أو المشروبات في غير الوقت المخصص أو مضغ العلكة'
-      },
-      {
-        title: 'عدم المحافظة على النظافة أو المظهر الشخصي أو مرافق المدرسة'
-      },
-      {
-        title: 'التأخر عن الحصة الدراسية'
-      }
-    ];
-
-    mainViolations.forEach(main => {
-      const title = document.createElement('div');
-      title.textContent = main.title;
-      title.style.cursor = 'pointer';
-      title.style.background = '#f8d7da';
-      title.style.padding = '6px';
-      title.style.borderRadius = '6px';
-      title.style.marginBottom = '5px';
-
-      const container = document.createElement('div');
-      container.style.marginBottom = '8px';
-
-      if (main.subOptions) {
-        const subList = document.createElement('div');
-        subList.style.display = 'none';
-        subList.style.marginTop = '5px';
-
-        main.subOptions.forEach(optionText => {
-          const label = document.createElement('label');
-          label.style.display = 'block';
-
-          const radio = document.createElement('input');
-          radio.type = 'radio';
-          radio.name = 'viol_' + student.id;
-          radio.value = optionText;
-
-          if (state.Viol.violations[student.id] === optionText) {
-            radio.checked = true;
-          }
-
-          radio.onchange = () => {
-            state.Viol.violations[student.id] = optionText;
-          };
-
-          label.appendChild(radio);
-          label.append(' ' + optionText);
-          subList.appendChild(label);
-        });
-
-        title.onclick = () => {
-          subList.style.display = subList.style.display === 'none' ? 'block' : 'none';
-        };
-
-        container.appendChild(title);
-        container.appendChild(subList);
-      } else {
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'viol_' + student.id;
-        radio.value = main.title;
-        radio.style.marginLeft = '5px';
-
-        if (state.Viol.violations[student.id] === main.title) {
-          radio.checked = true;
-        }
-
-        radio.onchange = () => {
-          state.Viol.violations[student.id] = main.title;
-        };
-
-        title.onclick = () => {
-          radio.checked = true;
-          state.Viol.violations[student.id] = main.title;
-        };
-
-        container.appendChild(radio);
-        container.appendChild(title);
-      }
-
-      tdViolation.appendChild(container);
-    });
-
+    tdViolation.appendChild(buildViolationSelect(student.id));
     tr.appendChild(tdViolation);
     tbody.appendChild(tr);
   });
