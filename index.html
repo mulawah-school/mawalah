@@ -91,7 +91,7 @@ button:hover {
 .admin-list{background:#fff;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:15px;overflow:auto}
 .admin-list table{margin-top:0}
 .admin-actions button{margin:4px}
-.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.abs-mode-btn{opacity:.55}.abs-mode-btn.active{opacity:1;box-shadow:0 0 0 3px #86efac}#absPeriodSelect:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
+.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.viol-picker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start}.viol-picker select{flex:1 1 240px;min-width:0;width:100%;max-width:460px;box-sizing:border-box;padding:8px;border-radius:10px;font-size:15px}.viol-table{table-layout:fixed;width:100%}.viol-table th:nth-child(1){width:7%}.viol-table th:nth-child(2){width:24%}.viol-table th:nth-child(3){width:69%}.viol-table td{overflow-wrap:anywhere}.viol-picker{max-width:100%}@media (max-width:700px){.viol-table th:nth-child(1){width:11%}.viol-table th:nth-child(2){width:27%}.viol-table th:nth-child(3){width:62%}.viol-picker select{flex-basis:100%;font-size:14px;padding:6px}}.viol-picker select.viol-main{flex-grow:3;max-width:540px}.viol-picker select.viol-sub{flex-grow:2}.viol-main{background:#f8d7da;border:1px solid #f1aeb5;font-weight:bold}.viol-main.chosen{border:2px solid #dc2626}.viol-sub{background:#fff;border:1px solid #fca5a5;border-right:6px solid #dc2626}.viol-sub.needs-sub{background:#fffbeb;border:1px dashed #f59e0b;border-right:6px solid #f59e0b}.viol-sub.chosen{background:#fef2f2;font-weight:bold}.abs-mode-btn{opacity:.55}.abs-mode-btn.active{opacity:1;box-shadow:0 0 0 3px #86efac}#absPeriodSelect:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
 .student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
 #adminRecordsView{display:none !important}
 #adminRecordsView.admin-open{display:block !important}
@@ -637,7 +637,7 @@ html.school-link-locked #schoolLinkGate{
         <button onclick="loadCSVData('Viol')">عرض الطلاب</button>
         <button onclick="exportData('Viol')">📤 إرسال</button><span id="loadingViol" style="display:none; margin-right: 10px; color:#dc2626;">⏳ جاري الإرسال...</span>
       </div>
-      <table>
+      <table class="viol-table">
         <thead><tr><th>#</th><th>الاسم</th><th>المخالفة</th></tr></thead>
         <tbody id="studentsBodyViol"><tr><td colspan="3">بانتظار تحميل البيانات...</td></tr></tbody>
       </table>
@@ -1187,7 +1187,7 @@ const EXPORT_WEBAPP_URLS = {
   Viol: ADMIN_WEBAPP_URL,
   Morning: ADMIN_WEBAPP_URL
 };
-const state = { Abs: {students: [], attendance: {}}, Viol: {students: [], violations: {}}, Morning: {students: [], status: {}} };
+const state = { Abs: {students: [], attendance: {}}, Viol: {students: [], violations: {}, mainChoice: {}}, Morning: {students: [], status: {}} };
 
 
 /* يعيد لوحة الإدارة إلى وضعها الافتراضي: كل الأقسام المفتوحة تُغلق */
@@ -1220,6 +1220,7 @@ function showSection(id) {
       state.Abs.attendance = {};
       state.Morning.status = {};
       state.Viol.violations = {};
+      state.Viol.mainChoice = {};
 
       document.getElementById('studentsBodyAbs').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
       document.getElementById('studentsBodyMorning').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
@@ -2204,6 +2205,110 @@ function renderAbsence() {
 
 
 
+/* قائمة المخالفات (النصوص كما كانت تمامًا): مجموعة لها بنود فرعية + مخالفات مفردة */
+const VIOLATION_GROUPS = [
+  {
+    title: 'الإخلال بنظام الطابور أو الحصص الدراسية أو الأنشطة المدرسية',
+    subOptions: [
+      'النوم في أثناء الحصص أو الأنشطة المدرسية',
+      'الإهمال في أداء الواجبات أو الأنشطة المدرسية',
+      'عدم الإنصات لتوجيهات المعلم',
+      'التسبب في الإزعاج بالقرب من الصفوف الدراسية',
+      'عدم الالتزام بإحضار الكتب والدفاتر والأدوات المدرسية والملابس الرياضية',
+      'التأخر عن الحصص الدراسية أو الغياب'
+    ]
+  }
+];
+const VIOLATION_SINGLES = [
+  'الشجار مع زملائه والإساءة بالقول',
+  'تناول المأكولات أو المشروبات في غير الوقت المخصص أو مضغ العلكة',
+  'عدم المحافظة على النظافة أو المظهر الشخصي أو مرافق المدرسة',
+  'التأخر عن الحصة الدراسية'
+];
+
+/* الخيار الرئيسي هو الأول وحده له بنود فرعية؛ بقية المخالفات بلا فروع */
+function violationMainOf(studentId) {
+  const v = state.Viol.violations[studentId] || '';
+  if (VIOLATION_GROUPS.some(g => g.subOptions.includes(v))) {
+    return VIOLATION_GROUPS.find(g => g.subOptions.includes(v)).title;
+  }
+  if (VIOLATION_SINGLES.includes(v)) return v;
+  return state.Viol.mainChoice[studentId] || '';
+}
+
+function buildViolationPicker(studentId) {
+  const wrap = document.createElement('div');
+  wrap.className = 'viol-picker';
+
+  const mk = (cls, label, aria) => {
+    const sel = document.createElement('select');
+    sel.className = cls;
+    sel.setAttribute('aria-label', aria);
+    const first = document.createElement('option');
+    first.value = '';
+    first.textContent = label;
+    sel.appendChild(first);
+    return sel;
+  };
+  const addOpt = (sel, text) => {
+    const o = document.createElement('option');
+    o.value = text; o.textContent = text;
+    sel.appendChild(o);
+  };
+
+  /* الرئيسي */
+  const main = mk('viol-main', '— اختر المخالفة —', 'المخالفة الرئيسية');
+  VIOLATION_GROUPS.forEach(g => addOpt(main, g.title));
+  VIOLATION_SINGLES.forEach(t => addOpt(main, t));
+
+  /* الفرعي (للبند الأول فقط) */
+  const group = VIOLATION_GROUPS[0];
+  const sub = mk('viol-sub', '↳ اختر البند الفرعي', 'البند الفرعي');
+  group.subOptions.forEach(t => addOpt(sub, t));
+
+  const sync = () => {
+    const m = violationMainOf(studentId);
+    main.value = m;
+    if (main.value !== m) main.value = '';
+    main.title = main.value;
+    main.classList.toggle('chosen', !!main.value);
+
+    const hasSub = main.value === group.title;
+    sub.style.display = hasSub ? '' : 'none';
+    const v = state.Viol.violations[studentId] || '';
+    sub.value = group.subOptions.includes(v) ? v : '';
+    sub.title = sub.value;
+    sub.classList.toggle('needs-sub', hasSub && !sub.value);
+    sub.classList.toggle('chosen', hasSub && !!sub.value);
+  };
+
+  main.onchange = () => {
+    const v = main.value;
+    if (!v) {
+      delete state.Viol.violations[studentId];
+      delete state.Viol.mainChoice[studentId];
+    } else if (v === group.title) {
+      state.Viol.mainChoice[studentId] = v;
+      delete state.Viol.violations[studentId];          // تُسجَّل بعد اختيار البند الفرعي
+    } else {
+      state.Viol.mainChoice[studentId] = v;
+      state.Viol.violations[studentId] = v;             // مخالفة بلا فروع
+    }
+    sync();
+  };
+
+  sub.onchange = () => {
+    if (sub.value) state.Viol.violations[studentId] = sub.value;
+    else delete state.Viol.violations[studentId];
+    sync();
+  };
+
+  wrap.appendChild(main);
+  wrap.appendChild(sub);
+  sync();
+  return wrap;
+}
+
 function renderViolations() {
   const tbody = document.getElementById('studentsBodyViol');
   tbody.innerHTML = '';
@@ -2212,109 +2317,11 @@ function renderViolations() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${index + 1}</td>
-      <td>${student.name}</td>
+      <td>${escapeHtml(student.name)}</td>
     `;
 
     const tdViolation = document.createElement('td');
-
-    const mainViolations = [
-      {
-        title: 'الإخلال بنظام الطابور أو الحصص الدراسية أو الأنشطة المدرسية',
-        subOptions: [
-          'النوم في أثناء الحصص أو الأنشطة المدرسية',
-          'الإهمال في أداء الواجبات أو الأنشطة المدرسية',
-          'عدم الإنصات لتوجيهات المعلم',
-          'التسبب في الإزعاج بالقرب من الصفوف الدراسية',
-          'عدم الالتزام بإحضار الكتب والدفاتر والأدوات المدرسية والملابس الرياضية',
-          'التأخر عن الحصص الدراسية أو الغياب'
-        ]
-      },
-      {
-        title: 'الشجار مع زملائه والإساءة بالقول'
-      },
-      {
-        title: 'تناول المأكولات أو المشروبات في غير الوقت المخصص أو مضغ العلكة'
-      },
-      {
-        title: 'عدم المحافظة على النظافة أو المظهر الشخصي أو مرافق المدرسة'
-      },
-      {
-        title: 'التأخر عن الحصة الدراسية'
-      }
-    ];
-
-    mainViolations.forEach(main => {
-      const title = document.createElement('div');
-      title.textContent = main.title;
-      title.style.cursor = 'pointer';
-      title.style.background = '#f8d7da';
-      title.style.padding = '6px';
-      title.style.borderRadius = '6px';
-      title.style.marginBottom = '5px';
-
-      const container = document.createElement('div');
-      container.style.marginBottom = '8px';
-
-      if (main.subOptions) {
-        const subList = document.createElement('div');
-        subList.style.display = 'none';
-        subList.style.marginTop = '5px';
-
-        main.subOptions.forEach(optionText => {
-          const label = document.createElement('label');
-          label.style.display = 'block';
-
-          const radio = document.createElement('input');
-          radio.type = 'radio';
-          radio.name = 'viol_' + student.id;
-          radio.value = optionText;
-
-          if (state.Viol.violations[student.id] === optionText) {
-            radio.checked = true;
-          }
-
-          radio.onchange = () => {
-            state.Viol.violations[student.id] = optionText;
-          };
-
-          label.appendChild(radio);
-          label.append(' ' + optionText);
-          subList.appendChild(label);
-        });
-
-        title.onclick = () => {
-          subList.style.display = subList.style.display === 'none' ? 'block' : 'none';
-        };
-
-        container.appendChild(title);
-        container.appendChild(subList);
-      } else {
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'viol_' + student.id;
-        radio.value = main.title;
-        radio.style.marginLeft = '5px';
-
-        if (state.Viol.violations[student.id] === main.title) {
-          radio.checked = true;
-        }
-
-        radio.onchange = () => {
-          state.Viol.violations[student.id] = main.title;
-        };
-
-        title.onclick = () => {
-          radio.checked = true;
-          state.Viol.violations[student.id] = main.title;
-        };
-
-        container.appendChild(radio);
-        container.appendChild(title);
-      }
-
-      tdViolation.appendChild(container);
-    });
-
+    tdViolation.appendChild(buildViolationPicker(student.id));
     tr.appendChild(tdViolation);
     tbody.appendChild(tr);
   });
@@ -2364,6 +2371,13 @@ function exportData(type) {
   }
 
   else {
+    const incomplete = state.Viol.students.filter(s =>
+      state.Viol.mainChoice[s.id] === VIOLATION_GROUPS[0].title && !state.Viol.violations[s.id]);
+    if (incomplete.length) {
+      showTeacherToast('⚠️ اختر البند الفرعي للطالب: ' + incomplete.slice(0, 3).map(s => s.name).join('، ') +
+        (incomplete.length > 3 ? ' ...' : ''), true, 6000);
+      return;
+    }
     const viols = state.Viol.students.filter(s => state.Viol.violations[s.id] && state.Viol.violations[s.id] !== '');
     if (!viols.length) {
       showTeacherToast('لم يتم اختيار أي مخالفات.', true);
