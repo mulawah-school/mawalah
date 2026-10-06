@@ -91,7 +91,7 @@ button:hover {
 .admin-list{background:#fff;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:15px;overflow:auto}
 .admin-list table{margin-top:0}
 .admin-actions button{margin:4px}
-.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.abs-mode-box{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:8px 14px;margin:6px 0;font-weight:bold}.abs-mode-box label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.controls .abs-mode-box input[type=radio]{width:auto!important;min-height:0!important;display:inline-block!important;margin:0!important}.controls .abs-mode-box select{width:auto!important;min-width:130px;display:inline-block!important;margin:0!important}.abs-mode-box select:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
+.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.abs-mode-btn{opacity:.55}.abs-mode-btn.active{opacity:1;box-shadow:0 0 0 3px #86efac}#absPeriodSelect:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
 .student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
 #adminRecordsView{display:none !important}
 #adminRecordsView.admin-open{display:block !important}
@@ -562,17 +562,6 @@ html.school-link-locked #schoolLinkGate{
             <option value="">اختر الصف</option>
           </select>
         </label>
-        <div class="abs-mode-box" id="absModeBox">
-          <label><input type="radio" name="absMode" value="day" checked onchange="onAbsModeChange()"> غياب يوم</label>
-          <label><input type="radio" name="absMode" value="period" onchange="onAbsModeChange()"> الحصص</label>
-          <select id="absPeriodSelect" disabled aria-label="رقم الحصة">
-            <option value="">اختر الحصة</option>
-            <option value="1">الحصة 1</option><option value="2">الحصة 2</option>
-            <option value="3">الحصة 3</option><option value="4">الحصة 4</option>
-            <option value="5">الحصة 5</option><option value="6">الحصة 6</option>
-            <option value="7">الحصة 7</option><option value="8">الحصة 8</option>
-          </select>
-        </div>
         <label>الشعبة:
           <select id="sectionSelectAbs"><option value="">اختر</option></select>
         </label>
@@ -580,6 +569,17 @@ html.school-link-locked #schoolLinkGate{
         <button onclick="noAbsentees()">✅ لا يوجد غياب</button>
 <button onclick="exportData('Abs')">📤 إرسال</button>
 <span id="loadingAbs" style="display:none; margin-right: 10px; color:#0077b6;">⏳ جاري الإرسال...</span>
+      </div>
+      <div class="controls" id="absModeRow">
+        <button type="button" id="absModeDayBtn" class="abs-mode-btn active" onclick="setAbsMode('day')">📅 غياب يوم</button>
+        <button type="button" id="absModePeriodBtn" class="abs-mode-btn" onclick="setAbsMode('period')">⏰ الحصص</button>
+        <select id="absPeriodSelect" disabled aria-label="رقم الحصة">
+          <option value="">اختر الحصة</option>
+          <option value="1">الحصة 1</option><option value="2">الحصة 2</option>
+          <option value="3">الحصة 3</option><option value="4">الحصة 4</option>
+          <option value="5">الحصة 5</option><option value="6">الحصة 6</option>
+          <option value="7">الحصة 7</option><option value="8">الحصة 8</option>
+        </select>
       </div>
       <table>
         <thead><tr><th>#</th><th>الاسم</th><th>الحالة</th></tr></thead>
@@ -2742,24 +2742,26 @@ let adminSelectedIds = new Set();
 /* ===== نمط الغياب: يوم كامل أو حصة محددة ===== */
 const PERIOD_MESSAGES_ENABLED = false;   // يتحول إلى true بعد إضافة قالب رسالة غياب الحصص
 
-function onAbsModeChange() {
-  const mode = (document.querySelector('input[name="absMode"]:checked') || {}).value || 'day';
+let absMode = 'day';
+
+function setAbsMode(mode) {
+  absMode = mode === 'period' ? 'period' : 'day';
+  const dayBtn = document.getElementById('absModeDayBtn');
+  const perBtn = document.getElementById('absModePeriodBtn');
+  if (dayBtn) dayBtn.classList.toggle('active', absMode === 'day');
+  if (perBtn) perBtn.classList.toggle('active', absMode === 'period');
   const sel = document.getElementById('absPeriodSelect');
-  if (!sel) return;
-  sel.disabled = mode !== 'period';
-  if (mode !== 'period') sel.value = '';
+  if (sel) {
+    sel.disabled = absMode !== 'period';
+    if (absMode !== 'period') sel.value = '';
+  }
 }
 
-function resetAbsMode() {
-  const day = document.querySelector('input[name="absMode"][value="day"]');
-  if (day) day.checked = true;
-  onAbsModeChange();
-}
+function resetAbsMode() { setAbsMode('day'); }
 
 /* يعيد {kind:'day'} أو {kind:'period', period:N}، أو null إن لم تُختر الحصة */
 function getAbsenceMode() {
-  const mode = (document.querySelector('input[name="absMode"]:checked') || {}).value || 'day';
-  if (mode !== 'period') return { kind: 'day', period: '' };
+  if (absMode !== 'period') return { kind: 'day', period: '' };
   const p = Number((document.getElementById('absPeriodSelect') || {}).value);
   return (p >= 1 && p <= 8) ? { kind: 'period', period: p } : null;
 }
