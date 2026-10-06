@@ -91,7 +91,7 @@ button:hover {
 .admin-list{background:#fff;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:15px;overflow:auto}
 .admin-list table{margin-top:0}
 .admin-actions button{margin:4px}
-.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
+.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.abs-mode-box{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:8px 14px;margin:6px 0;font-weight:bold}.abs-mode-box label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.controls .abs-mode-box input[type=radio]{width:auto!important;min-height:0!important;display:inline-block!important;margin:0!important}.controls .abs-mode-box select{width:auto!important;min-width:130px;display:inline-block!important;margin:0!important}.abs-mode-box select:disabled{opacity:.5;cursor:not-allowed}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
 .student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
 #adminRecordsView{display:none !important}
 #adminRecordsView.admin-open{display:block !important}
@@ -562,6 +562,17 @@ html.school-link-locked #schoolLinkGate{
             <option value="">اختر الصف</option>
           </select>
         </label>
+        <div class="abs-mode-box" id="absModeBox">
+          <label><input type="radio" name="absMode" value="day" checked onchange="onAbsModeChange()"> غياب يوم</label>
+          <label><input type="radio" name="absMode" value="period" onchange="onAbsModeChange()"> الحصص</label>
+          <select id="absPeriodSelect" disabled aria-label="رقم الحصة">
+            <option value="">اختر الحصة</option>
+            <option value="1">الحصة 1</option><option value="2">الحصة 2</option>
+            <option value="3">الحصة 3</option><option value="4">الحصة 4</option>
+            <option value="5">الحصة 5</option><option value="6">الحصة 6</option>
+            <option value="7">الحصة 7</option><option value="8">الحصة 8</option>
+          </select>
+        </div>
         <label>الشعبة:
           <select id="sectionSelectAbs"><option value="">اختر</option></select>
         </label>
@@ -1214,6 +1225,7 @@ function showSection(id) {
       document.getElementById('studentsBodyMorning').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
       document.getElementById('studentsBodyViol').innerHTML = '<tr><td colspan="3">بانتظار تحميل البيانات...</td></tr>';
 
+      resetAbsMode();
       document.getElementById('gradeSelectAbs').value = '';
       document.getElementById('gradeSelectMorning').value = '';
       document.getElementById('gradeSelectViol').value = '';
@@ -2317,13 +2329,23 @@ function exportData(type) {
   const today = new Date().toLocaleDateString('ar-OM');
 
   if (type === 'Abs') {
+    const mode = getAbsenceMode();
+    if (!mode) {
+      showTeacherToast('⚠️ اختر رقم الحصة أولًا أو أعد الخيار إلى "غياب يوم".', true);
+      return;
+    }
     const absents = state.Abs.students.filter(s => state.Abs.attendance[s.id] === false);
     if (!absents.length) {
       showTeacherToast('لا يوجد غياب لتصديره.', true);
       return;
     }
-    const rows = absents.map((s, i) => ({ serial: i + 1, phone: s.phone, name: s.name, message: `ولي أمر الطالب ${s.name}، نعلمكم بغياب ابنكم عن الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}` }));
-    sendData(rows, type);
+    const rows = absents.map((s, i) => ({
+      serial: i + 1, phone: s.phone, name: s.name,
+      message: mode.kind === 'period'
+        ? `ولي أمر الطالب ${s.name}، نعلمكم بغياب ابنكم عن الحصة ${mode.period} في الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}`
+        : `ولي أمر الطالب ${s.name}، نعلمكم بغياب ابنكم عن الصف ${grade}/${section} بتاريخ ${today}. —  المعلم : ${teacher}`
+    }));
+    sendData(rows, type, mode);
   } 
   else if (type === 'Morning') {
     const teacher = document.getElementById('teacherNameMorning').value.trim() || 'غير معروف';
@@ -2452,7 +2474,7 @@ function canonicalizeRowsAgainstPDF(rows, type, grade, section) {
   });
 }
 
-function sendData(rows, type) {
+function sendData(rows, type, mode) {
   const loadingSpan = document.getElementById('loading' + type);
   const sendBtn = document.querySelector(`button[onclick="exportData('${type}')"]`);
   const grade = document.getElementById('gradeSelect' + type).value.trim();
@@ -2482,7 +2504,11 @@ function sendData(rows, type) {
     date: todayISO(),
     message: r.message || '',
     pdfSchoolId: r.schoolId || '',
-    pdfSerial: r.pdfSerial || ''
+    pdfSerial: r.pdfSerial || '',
+    ...(type === 'Abs' ? {
+      absenceKind: (mode && mode.kind) || 'day',
+      period: (mode && mode.kind === 'period') ? String(mode.period) : ''
+    } : {})
   }));
 
   if (loadingSpan) {
@@ -2640,6 +2666,7 @@ function resetForm(type) {
   const sectionSelect = document.getElementById('sectionSelect' + type);
   const tbodyId = type === 'Abs' ? 'studentsBodyAbs' : type === 'Viol' ? 'studentsBodyViol' : 'studentsBodyMorning';
 
+  if (type === 'Abs') resetAbsMode();
   if (nameInput) nameInput.value = '';
   if (gradeSelect) gradeSelect.value = '';
   if (sectionSelect) sectionSelect.innerHTML = '<option value="">اختر</option>';
@@ -2660,6 +2687,13 @@ function noAbsentees() {
     return;
   }
 
+  const mode = getAbsenceMode();
+  if (!mode) {
+    showTeacherToast('⚠️ اختر رقم الحصة أولًا أو أعد الخيار إلى "غياب يوم".', true);
+    return;
+  }
+  const isPeriod = mode.kind === 'period';
+
   fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
     headers: {'Content-Type': 'text/plain;charset=utf-8'},
@@ -2671,14 +2705,16 @@ function noAbsentees() {
       records: [{
         type: 'Abs',
         studentName: 'لا يوجد غياب',
-        studentId: `NOABS-${grade}-${section}-${todayISO()}`,
+        studentId: `NOABS-${grade}-${section}-${todayISO()}` + (isPeriod ? `-P${mode.period}` : ''),
         phone: '',
         className: `${grade}/${section}`,
         teacher: teacher,
         violation: '',
         date: todayISO(),
         noAbsence: true,
-        message: `لا يوجد غياب في الصف ${grade}/${section} - المعلم: ${teacher}`
+        absenceKind: mode.kind,
+        period: isPeriod ? String(mode.period) : '',
+        message: `لا يوجد غياب ${isPeriod ? 'في الحصة ' + mode.period + ' ' : ''}في الصف ${grade}/${section} - المعلم: ${teacher}`
       }]
     })
   })
@@ -2703,6 +2739,61 @@ function noAbsentees() {
 let adminRecords = [];
 let adminCurrentType = 'Abs';
 let adminSelectedIds = new Set();
+/* ===== نمط الغياب: يوم كامل أو حصة محددة ===== */
+const PERIOD_MESSAGES_ENABLED = false;   // يتحول إلى true بعد إضافة قالب رسالة غياب الحصص
+
+function onAbsModeChange() {
+  const mode = (document.querySelector('input[name="absMode"]:checked') || {}).value || 'day';
+  const sel = document.getElementById('absPeriodSelect');
+  if (!sel) return;
+  sel.disabled = mode !== 'period';
+  if (mode !== 'period') sel.value = '';
+}
+
+function resetAbsMode() {
+  const day = document.querySelector('input[name="absMode"][value="day"]');
+  if (day) day.checked = true;
+  onAbsModeChange();
+}
+
+/* يعيد {kind:'day'} أو {kind:'period', period:N}، أو null إن لم تُختر الحصة */
+function getAbsenceMode() {
+  const mode = (document.querySelector('input[name="absMode"]:checked') || {}).value || 'day';
+  if (mode !== 'period') return { kind: 'day', period: '' };
+  const p = Number((document.getElementById('absPeriodSelect') || {}).value);
+  return (p >= 1 && p <= 8) ? { kind: 'period', period: p } : null;
+}
+
+function isPeriodRecord(r) {
+  return !!r && r.type === 'Abs' && r.absenceKind === 'period' && Number(r.period) >= 1;
+}
+/* غياب حصة: لا تُرسل رسالته حتى يُضاف قالب الحصص */
+function isPeriodHeld(r) {
+  return !PERIOD_MESSAGES_ENABLED && isPeriodRecord(r) && !r.sent && r.studentName !== 'لا يوجد غياب';
+}
+function absenceDetailText(r) {
+  if (r.studentName === 'لا يوجد غياب') {
+    return 'لا يوجد غياب' + (isPeriodRecord(r) ? ' — الحصة ' + r.period : '');
+  }
+  return isPeriodRecord(r) ? 'غياب الحصة ' + r.period : 'غياب يوم';
+}
+function recordDetailText(r) {
+  return r.type === 'Viol' ? (r.violation || '—') : (r.type === 'Morning' ? 'تأخر صباحي' : absenceDetailText(r));
+}
+
+/* ===== ترتيب الفصول من الصف 5 إلى 12 (رقميًا) ثم الشعبة ثم اسم الطالب ===== */
+function classOrderParts(className) {
+  const m = String(className || '').match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+  return m ? [Number(m[1]), Number(m[2])] : [999, 999];
+}
+function compareRecordsByClass(a, b) {
+  const [ga, sa] = classOrderParts(a.className);
+  const [gb, sb] = classOrderParts(b.className);
+  return (ga - gb) || (sa - sb) ||
+    String(a.studentName || '').localeCompare(String(b.studentName || ''), 'ar') ||
+    ((Number(a.period) || 0) - (Number(b.period) || 0));
+}
+
 let adminDate = null;   // اليوم المعروض في سجلات الإدارة (YYYY-MM-DD). null = اليوم الحالي
 
 function recordDay(r) { return String((r && r.date) || '').slice(0, 10); }
@@ -2859,7 +2950,7 @@ function getVisibleAdminRecords() {
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     })
-    .sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+    .sort(compareRecordsByClass);
 }
 
 /* =========================================================
@@ -2871,12 +2962,13 @@ async function copyAbsenceForPortal() {
     ? adminRecords.filter(r => adminSelectedIds.has(String(r.id)))
     : getVisibleAdminRecords();
 
+  // البوابة تسجّل غياب اليوم الكامل فقط؛ غياب الحصص لا يُنسخ
   const rows = source.filter(r =>
-    r.type === 'Abs' && r.studentName && r.studentName !== 'لا يوجد غياب'
+    r.type === 'Abs' && !isPeriodRecord(r) && r.studentName && r.studentName !== 'لا يوجد غياب'
   );
 
   if (!rows.length) {
-    showTeacherToast('لا توجد سجلات غياب لنسخها. افتح قسم الغياب أو حدّد السجلات.', true, 4000);
+    showTeacherToast('لا توجد سجلات غياب يوم لنسخها. افتح قسم الغياب أو حدّد السجلات.', true, 4000);
     return;
   }
 
@@ -2888,7 +2980,11 @@ async function copyAbsenceForPortal() {
 
   const lines = ['#MOE-ABSENCE-V1'];
   let total = 0;
-  Object.keys(groups).sort().forEach(key => {
+  Object.keys(groups).sort((ka, kb) => {
+    const [da, ca] = ka.split('|'), [db, cb] = kb.split('|');
+    const [ga, sa] = classOrderParts(ca), [gb, sb] = classOrderParts(cb);
+    return da.localeCompare(db) || (ga - gb) || (sa - sb);
+  }).forEach(key => {
     const [date, cls] = key.split('|');
     lines.push('## ' + date + ' | ' + cls);
     groups[key].forEach(name => { lines.push(name); total++; });
@@ -2946,18 +3042,16 @@ function renderAdminRecords() {
       ? '<span class="status-sent">✅ تم الإرسال</span>'
       : (expired
           ? '<span class="status-expired">⌛ انتهى وقت الإرسال</span><div style="font-size:11px;color:#92400e;margin-top:3px;">لم تُرسل في نفس اليوم</div>'
-          : '<span class="status-pending">⏳ بانتظار الإرسال</span>');
+          : (isPeriodHeld(r)
+              ? '<span class="status-pending">⏸ بانتظار قالب رسالة الحصص</span>'
+              : '<span class="status-pending">⏳ بانتظار الإرسال</span>'));
 
-    const detail = r.type === 'Viol'
-      ? escapeHtml(r.violation || '—')
-      : r.type === 'Morning'
-        ? 'تأخر صباحي'
-        : (r.studentName === 'لا يوجد غياب' ? 'لا يوجد غياب' : 'غياب');
+    const detail = escapeHtml(recordDetailText(r));
 
     return `
       <tr${expired ? ' style="opacity:.75;"' : ''}>
         <td style="text-align:center;">
-          <input type="checkbox" ${checked} ${expired ? 'disabled title="انتهى وقت إرسال هذه الرسالة"' : ''}
+          <input type="checkbox" ${checked} ${expired ? 'disabled title="انتهى وقت إرسال هذه الرسالة"' : (isPeriodHeld(r) ? 'disabled title="قالب رسالة غياب الحصص لم يُضف بعد"' : '')}
             onchange="toggleAdminRecord('${escapeJs(r.id)}', this.checked)">
         </td>
         <td>${i + 1}</td>
@@ -3007,7 +3101,7 @@ function toggleAdminRecord(id, checked) {
 
 function selectAllAdminRecords(select) {
   getVisibleAdminRecords().forEach(r => {
-    if (select && isExpiredRecord(r)) return;
+    if (select && (isExpiredRecord(r) || isPeriodHeld(r))) return;
     if (select) adminSelectedIds.add(String(r.id));
     else adminSelectedIds.delete(String(r.id));
   });
@@ -3042,11 +3136,14 @@ async function sendSelectedAdminRecords() {
   const selected = adminRecords.filter(r => ids.includes(String(r.id)));
   const alreadySent = selected.filter(r => r.sent).length;
   const expiredSel = selected.filter(isExpiredRecord);
-  const sendable = selected.filter(r => !r.sent && !isExpiredRecord(r));
+  const heldSel = selected.filter(isPeriodHeld);
+  const sendable = selected.filter(r => !r.sent && !isExpiredRecord(r) && !isPeriodHeld(r));
   const pending = sendable.length;
 
   if (!pending) {
-    if (expiredSel.length) {
+    if (heldSel.length && !expiredSel.length) {
+      showTeacherToast('⏸ رسائل غياب الحصص ستُفعَّل بعد إضافة قالبها، ولا يمكن إرسالها الآن.', true, 5000);
+    } else if (expiredSel.length) {
       showTeacherToast('⌛ انتهى وقت إرسال هذه الرسائل: لم تُرسل في نفس اليوم ولا يمكن إرسالها الآن.', true, 6000);
     } else {
       showTeacherToast('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.', true);
@@ -3115,15 +3212,18 @@ async function sendSelectedAdminRecords() {
 
 async function selectAndSendAllPending() {
   const visible = getVisibleAdminRecords();
-  const pending = visible.filter(r => !r.sent && !isExpiredRecord(r));
+  const pending = visible.filter(r => !r.sent && !isExpiredRecord(r) && !isPeriodHeld(r));
   const expiredCount = visible.filter(isExpiredRecord).length;
+  const heldCount = visible.filter(isPeriodHeld).length;
 
   if (!pending.length) {
     showTeacherToast(
       expiredCount
         ? '⌛ انتهى وقت إرسال ' + expiredCount + ' رسالة: لم تُرسل في نفس اليوم ولا يمكن إرسالها الآن.'
-        : 'لا توجد حالات غير مرسلة في هذا القسم.',
-      true, expiredCount ? 6000 : undefined);
+        : (heldCount
+            ? '⏸ رسائل غياب الحصص ستُفعَّل بعد إضافة قالبها.'
+            : 'لا توجد حالات غير مرسلة في هذا القسم.'),
+      true, (expiredCount || heldCount) ? 6000 : undefined);
     return;
   }
 
@@ -3270,7 +3370,7 @@ function showStudentReport(studentId) {
                     ? escapeHtml(r.violation || '—')
                     : r.type === 'Morning'
                       ? 'تأخر صباحي'
-                      : 'غياب'}</td>
+                      : escapeHtml(absenceDetailText(r))}</td>
               <td>${escapeHtml(r.teacher || '—')}</td>
               <td>${r.sent ? '✅ تم الإرسال' : (isExpiredRecord(r) ? '⌛ انتهى وقت الإرسال' : '⏳ لم يرسل')}</td>
             </tr>`).join('')}
@@ -3355,7 +3455,7 @@ function exportAdminListPDF() {
       <td>${i + 1}</td>
       <td>${escapeHtml(r.studentName || '—')}</td>
       <td>${escapeHtml(r.className || '—')}</td>
-      <td>${r.type === 'Viol' ? escapeHtml(r.violation || '—') : (r.type === 'Morning' ? 'تأخر صباحي' : 'غياب')}</td>
+      <td>${escapeHtml(recordDetailText(r))}</td>
       <td>${escapeHtml(r.date || '—')}</td>
       <td>${escapeHtml(r.teacher || '—')}</td>
       <td>${r.sent ? 'تم الإرسال' : (isExpiredRecord(r) ? 'انتهى وقت الإرسال' : 'لم يرسل')}</td>
