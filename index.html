@@ -91,7 +91,7 @@ button:hover {
 .admin-list{background:#fff;border-radius:14px;box-shadow:0 4px 12px rgba(0,0,0,.1);padding:15px;overflow:auto}
 .admin-list table{margin-top:0}
 .admin-actions button{margin:4px}
-.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}
+.status-sent{color:#15803d;font-weight:bold}.status-pending{color:#b45309;font-weight:bold}.status-failed{color:#dc2626;font-weight:bold}.status-expired{color:#92400e;background:#fef3c7;border:1px solid #fcd34d;padding:3px 8px;border-radius:8px;font-weight:bold;display:inline-block}.admin-archive-note{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:10px;margin-bottom:10px;line-height:1.8;font-weight:bold}.admin-date-box{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:10px;padding:4px 10px;font-weight:bold}.admin-date-box input{padding:6px;border:1px solid #cbd5e1;border-radius:8px}
 .student-report{background:#fff;padding:20px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-top:20px}
 #adminRecordsView{display:none !important}
 #adminRecordsView.admin-open{display:block !important}
@@ -525,6 +525,10 @@ html.school-link-locked #schoolLinkGate{
             <div id="adminSendStatus" style="display:none;width:100%;background:#ecfeff;color:#075985;padding:10px 14px;border-radius:10px;text-align:center;font-weight:bold;">
               ⏳ جاري إرسال الرسائل إلى WhatsApp...
             </div>
+            <span class="admin-date-box">📅 اليوم:
+              <input type="date" id="adminDateFilter" onchange="setAdminDate(this.value)">
+            </span>
+            <button onclick="setAdminDate('')" style="background:#0f766e;color:#fff;">📅 اليوم الحالي</button>
             <input id="adminSearch" placeholder="🔎 البحث عن طالب" oninput="renderAdminRecords()">
             <button onclick="selectAllAdminRecords(true)">☑️ تحديد الكل</button>
             <button onclick="selectAllAdminRecords(false)">⬜ إلغاء التحديد</button>
@@ -1185,6 +1189,8 @@ function resetAdminDashboardView() {
   if (records) { records.classList.remove('admin-open'); records.style.display = 'none'; }
   const report = document.getElementById('studentReportView');
   if (report) report.style.display = 'none';
+  adminDate = null;
+  try { updateAdminCardsCounts(); } catch (e) {}
   ['pdfImportStatusInline', 'studentEditorMessage', 'schoolSettingsMessage'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '';
@@ -2697,6 +2703,32 @@ function noAbsentees() {
 let adminRecords = [];
 let adminCurrentType = 'Abs';
 let adminSelectedIds = new Set();
+let adminDate = null;   // اليوم المعروض في سجلات الإدارة (YYYY-MM-DD). null = اليوم الحالي
+
+function recordDay(r) { return String((r && r.date) || '').slice(0, 10); }
+function adminViewDate() { return adminDate || todayISO(); }
+function isAdminArchiveDate() { return adminViewDate() < todayISO(); }
+
+/* رسالة لم تُرسل في يومها: انتهى وقت إرسالها (سجل "لا يوجد غياب" لا تُرسل له رسالة أصلًا) */
+function isExpiredRecord(r) {
+  if (!r || r.sent) return false;
+  if (r.studentName === 'لا يوجد غياب') return false;
+  const d = recordDay(r);
+  return !!d && d < todayISO();
+}
+
+function setAdminDate(value) {
+  const today = todayISO();
+  let d = /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : today;
+  if (d > today) d = today;
+  adminDate = d === today ? null : d;
+  const input = document.getElementById('adminDateFilter');
+  if (input) { input.value = d; input.max = today; }
+  adminSelectedIds = new Set();
+  renderAdminRecords();
+  updateAdminCardsCounts();
+  if (adminDate) showTeacherToast('📦 أرشيف يوم ' + d + ' — للعرض فقط', false, 3500);
+}
 let adminDashboardUnlocked = false;
 
 function openAdminDashboardLogin() {
@@ -2771,6 +2803,8 @@ async function loadAdminRecords() {
 
 function openAdminRecords(type) {
   adminCurrentType = type;
+  adminDate = null;
+  { const di = document.getElementById('adminDateFilter'); if (di) { di.value = todayISO(); di.max = todayISO(); } }
   document.getElementById('adminRecordsView').classList.add('admin-open');
   document.getElementById('adminRecordsView').style.display = 'block';
   document.getElementById('studentReportView').style.display = 'none';
@@ -2790,18 +2824,17 @@ function openAdminRecords(type) {
 }
 
 function updateAdminCardsCounts() {
-  const counts = {
-    Abs: adminRecords.filter(r => r.type === 'Abs').length,
-    Viol: adminRecords.filter(r => r.type === 'Viol').length,
-    Morning: adminRecords.filter(r => r.type === 'Morning').length
-  };
+  const day = adminViewDate();
+  const inDay = type => adminRecords.filter(r => r.type === type && recordDay(r) === day).length;
+  const counts = { Abs: inDay('Abs'), Viol: inDay('Viol'), Morning: inDay('Morning') };
+  const label = isAdminArchiveDate() ? '📦 ' + day : 'اليوم';
 
-  document.querySelector('.admin-card.abs').innerHTML =
-    `🟩<br>الغياب<br><small>${counts.Abs} حالة</small>`;
-  document.querySelector('.admin-card.viol').innerHTML =
-    `🟥<br>السلوكيات<br><small>${counts.Viol} حالة</small>`;
-  document.querySelector('.admin-card.morning').innerHTML =
-    `🔵<br>التأخر الصباحي<br><small>${counts.Morning} حالة</small>`;
+  const abs = document.querySelector('.admin-card.abs');
+  const viol = document.querySelector('.admin-card.viol');
+  const morning = document.querySelector('.admin-card.morning');
+  if (abs) abs.innerHTML = `🟩<br>الغياب<br><small>${counts.Abs} حالة (${label})</small>`;
+  if (viol) viol.innerHTML = `🟥<br>السلوكيات<br><small>${counts.Viol} حالة (${label})</small>`;
+  if (morning) morning.innerHTML = `🔵<br>التأخر الصباحي<br><small>${counts.Morning} حالة (${label})</small>`;
 }
 
 function getVisibleAdminRecords() {
@@ -2809,8 +2842,10 @@ function getVisibleAdminRecords() {
     .trim()
     .toLowerCase();
 
+  const day = adminViewDate();
   return adminRecords
     .filter(r => r.type === adminCurrentType)
+    .filter(r => recordDay(r) === day)
     .filter(r => {
       if (!q) return true;
       const haystack = [
@@ -2883,19 +2918,35 @@ function renderAdminRecords() {
   const box = document.getElementById('adminRecordsViewList');
   const records = getVisibleAdminRecords();
 
+  // تنبيه الرسائل التي انتهى وقت إرسالها (أيام سابقة) في هذا القسم
+  const expiredAll = adminRecords.filter(r => r.type === adminCurrentType && isExpiredRecord(r));
+  const expiredInView = records.filter(isExpiredRecord).length;
+  const day = adminViewDate();
+  let noteHtml = '';
+  if (isAdminArchiveDate()) {
+    noteHtml += `<div class="admin-archive-note">📦 أرشيف يوم ${escapeHtml(day)} — للعرض فقط.` +
+      (expiredInView ? `<br>⌛ ${expiredInView} رسالة لم تُرسل في نفس اليوم وانتهى وقت إرسالها.` : '') + `</div>`;
+  } else if (expiredAll.length) {
+    noteHtml += `<div class="admin-archive-note">⌛ ${expiredAll.length} رسالة من أيام سابقة لم تُرسل في يومها وانتهى وقت إرسالها. ` +
+      `يمكنك الاطلاع عليها من خانة التاريخ.</div>`;
+  }
+
   if (!records.length) {
-    box.innerHTML = `
+    box.innerHTML = noteHtml + `
       <div style="padding:25px;text-align:center;color:#64748b;">
-        لا توجد معطيات في هذا القسم.
+        لا توجد معطيات في هذا القسم ليوم ${escapeHtml(day)}.
       </div>`;
     return;
   }
 
   const rows = records.map((r, i) => {
+    const expired = isExpiredRecord(r);
     const checked = adminSelectedIds.has(String(r.id)) ? 'checked' : '';
     const sentText = r.sent
       ? '<span class="status-sent">✅ تم الإرسال</span>'
-      : '<span class="status-pending">⏳ بانتظار الإرسال</span>';
+      : (expired
+          ? '<span class="status-expired">⌛ انتهى وقت الإرسال</span><div style="font-size:11px;color:#92400e;margin-top:3px;">لم تُرسل في نفس اليوم</div>'
+          : '<span class="status-pending">⏳ بانتظار الإرسال</span>');
 
     const detail = r.type === 'Viol'
       ? escapeHtml(r.violation || '—')
@@ -2904,9 +2955,9 @@ function renderAdminRecords() {
         : (r.studentName === 'لا يوجد غياب' ? 'لا يوجد غياب' : 'غياب');
 
     return `
-      <tr>
+      <tr${expired ? ' style="opacity:.75;"' : ''}>
         <td style="text-align:center;">
-          <input type="checkbox" ${checked}
+          <input type="checkbox" ${checked} ${expired ? 'disabled title="انتهى وقت إرسال هذه الرسالة"' : ''}
             onchange="toggleAdminRecord('${escapeJs(r.id)}', this.checked)">
         </td>
         <td>${i + 1}</td>
@@ -2927,9 +2978,9 @@ function renderAdminRecords() {
       </tr>`;
   }).join('');
 
-  box.innerHTML = `
+  box.innerHTML = noteHtml + `
     <div style="margin-bottom:10px;color:#475569;">
-      عدد النتائج: <strong>${records.length}</strong>
+      عدد النتائج: <strong>${records.length}</strong> — يوم <strong>${escapeHtml(day)}</strong>
     </div>
     <table>
       <thead>
@@ -2956,6 +3007,7 @@ function toggleAdminRecord(id, checked) {
 
 function selectAllAdminRecords(select) {
   getVisibleAdminRecords().forEach(r => {
+    if (select && isExpiredRecord(r)) return;
     if (select) adminSelectedIds.add(String(r.id));
     else adminSelectedIds.delete(String(r.id));
   });
@@ -2989,10 +3041,16 @@ async function sendSelectedAdminRecords() {
 
   const selected = adminRecords.filter(r => ids.includes(String(r.id)));
   const alreadySent = selected.filter(r => r.sent).length;
-  const pending = selected.filter(r => !r.sent).length;
+  const expiredSel = selected.filter(isExpiredRecord);
+  const sendable = selected.filter(r => !r.sent && !isExpiredRecord(r));
+  const pending = sendable.length;
 
   if (!pending) {
-    showTeacherToast('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.', true);
+    if (expiredSel.length) {
+      showTeacherToast('⌛ انتهى وقت إرسال هذه الرسائل: لم تُرسل في نفس اليوم ولا يمكن إرسالها الآن.', true, 6000);
+    } else {
+      showTeacherToast('هذه الحالات تم إرسالها سابقًا، ولن يتم إعادة إرسالها.', true);
+    }
     return;
   }
 
@@ -3010,7 +3068,7 @@ async function sendSelectedAdminRecords() {
         action: 'send',
         pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
         ...schoolRequestFields(),
-        ids: ids,
+        ids: sendable.map(r => String(r.id)),
         schoolName: schoolNameForWhatsApp
       })
     });
@@ -3040,7 +3098,8 @@ async function sendSelectedAdminRecords() {
     setAdminSendingUI(false);
 
     showTeacherToast(
-      sendResultToastText(`📱 نتيجة الإرسال: تم الإرسال: ${sent} | فشل: ${failed}`, result),
+      sendResultToastText(`📱 نتيجة الإرسال: تم الإرسال: ${sent} | فشل: ${failed}` +
+        (expiredSel.length ? ` | ⌛ انتهى وقت إرسال ${expiredSel.length}` : ''), result),
       isSchoolBalanceEnded(result),
       isSchoolBalanceEnded(result) ? 6000 : undefined
     );
@@ -3055,10 +3114,16 @@ async function sendSelectedAdminRecords() {
 }
 
 async function selectAndSendAllPending() {
-  const pending = getVisibleAdminRecords().filter(r => !r.sent);
+  const visible = getVisibleAdminRecords();
+  const pending = visible.filter(r => !r.sent && !isExpiredRecord(r));
+  const expiredCount = visible.filter(isExpiredRecord).length;
 
   if (!pending.length) {
-    showTeacherToast('لا توجد حالات غير مرسلة في هذا القسم.', true);
+    showTeacherToast(
+      expiredCount
+        ? '⌛ انتهى وقت إرسال ' + expiredCount + ' رسالة: لم تُرسل في نفس اليوم ولا يمكن إرسالها الآن.'
+        : 'لا توجد حالات غير مرسلة في هذا القسم.',
+      true, expiredCount ? 6000 : undefined);
     return;
   }
 
@@ -3095,7 +3160,8 @@ async function selectAndSendAllPending() {
 
     setAdminSendingUI(false);
     showTeacherToast(
-      sendResultToastText(`📱 تم الإرسال: ${result.sent || 0} | فشل: ${result.failed || 0}`, result),
+      sendResultToastText(`📱 تم الإرسال: ${result.sent || 0} | فشل: ${result.failed || 0}` +
+        (expiredCount ? ` | ⌛ انتهى وقت إرسال ${expiredCount}` : ''), result),
       isSchoolBalanceEnded(result),
       isSchoolBalanceEnded(result) ? 6000 : undefined
     );
@@ -3206,7 +3272,7 @@ function showStudentReport(studentId) {
                       ? 'تأخر صباحي'
                       : 'غياب'}</td>
               <td>${escapeHtml(r.teacher || '—')}</td>
-              <td>${r.sent ? '✅ تم الإرسال' : '⏳ لم يرسل'}</td>
+              <td>${r.sent ? '✅ تم الإرسال' : (isExpiredRecord(r) ? '⌛ انتهى وقت الإرسال' : '⏳ لم يرسل')}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -3292,7 +3358,7 @@ function exportAdminListPDF() {
       <td>${r.type === 'Viol' ? escapeHtml(r.violation || '—') : (r.type === 'Morning' ? 'تأخر صباحي' : 'غياب')}</td>
       <td>${escapeHtml(r.date || '—')}</td>
       <td>${escapeHtml(r.teacher || '—')}</td>
-      <td>${r.sent ? 'تم الإرسال' : 'لم يرسل'}</td>
+      <td>${r.sent ? 'تم الإرسال' : (isExpiredRecord(r) ? 'انتهى وقت الإرسال' : 'لم يرسل')}</td>
     </tr>`).join('');
 
   win.document.write(`
