@@ -1175,7 +1175,24 @@ const EXPORT_WEBAPP_URLS = {
 const state = { Abs: {students: [], attendance: {}}, Viol: {students: [], violations: {}}, Morning: {students: [], status: {}} };
 
 
+/* يعيد لوحة الإدارة إلى وضعها الافتراضي: كل الأقسام المفتوحة تُغلق */
+function resetAdminDashboardView() {
+  ['schoolSettingsInline', 'adminStudentListsInline', 'studentEditorInline'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const records = document.getElementById('adminRecordsView');
+  if (records) { records.classList.remove('admin-open'); records.style.display = 'none'; }
+  const report = document.getElementById('studentReportView');
+  if (report) report.style.display = 'none';
+  ['pdfImportStatusInline', 'studentEditorMessage', 'schoolSettingsMessage'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+}
+
 function showSection(id) {
+  if (id !== 'adminDashboardSection') resetAdminDashboardView();
   document.querySelectorAll('#mainMenu, #absenceSection, #violationSection, #morningLateSection, #studentAdminSection, #adminDashboardSection')
     .forEach(div => div.classList.add('hidden'));
   document.getElementById(id).classList.remove('hidden');
@@ -2072,7 +2089,7 @@ async function importPDFLists() {
   }
 
   saveLocalStudentLists();
-  renderStudentListsSummary();
+  refreshStudentListsUI();
   input.value = '';
 
   status.innerHTML = importStatusHtml(acc, errors);
@@ -2124,10 +2141,18 @@ function escapeHtml(value) {
   }[ch]));
 }
 
+/* يحدّث كل ما يعرض القوائم (الملخّصان + قوائم الصف/الشعبة + محرر الأسماء) فور أي تغيير */
+function refreshStudentListsUI() {
+  refreshGradeSelectors();
+  renderStudentListsSummary();
+  renderStudentListsSummaryInline();
+  if (document.getElementById('studentEditorGrade')) updateStudentEditorSections();
+}
+
 async function deleteStudentList(key) {
   showTeacherToast('⏳ جاري حذف القائمة...', false, 15000);
   delete localStudentLists[key];
-  renderStudentListsSummary();
+  refreshStudentListsUI();
   const ok = await saveLocalStudentLists({immediate: true, silent: true});
   showTeacherToast(ok ? '✅ تم حذف القائمة' : '⚠️ حُذفت من هذا الجهاز فقط، تعذر الحذف من السيرفر', !ok, ok ? 2500 : 5000);
 }
@@ -2135,7 +2160,7 @@ async function deleteStudentList(key) {
 async function clearStudentLists() {
   showTeacherToast('⏳ جاري حذف جميع القوائم...', false, 15000);
   localStudentLists = {};
-  renderStudentListsSummary();
+  refreshStudentListsUI();
   const ok = await saveLocalStudentLists({immediate: true, silent: true});
   showTeacherToast(ok ? '✅ تم حذف جميع القوائم' : '⚠️ حُذفت من هذا الجهاز فقط، تعذر الحذف من السيرفر', !ok, ok ? 2500 : 5000);
 }
@@ -2676,6 +2701,7 @@ let adminDashboardUnlocked = false;
 
 function openAdminDashboardLogin() {
   showSection('adminDashboardSection');
+  resetAdminDashboardView();
   document.getElementById('adminDashboardLogin').style.display = 'block';
   document.getElementById('adminDashboardPanel').style.display = 'none';
   document.getElementById('adminRecordsView').style.display = 'none';
@@ -2694,6 +2720,7 @@ async function verifyDashboardPin() {
   }
 
   adminDashboardUnlocked = true;
+  resetAdminDashboardView();
   document.getElementById('adminDashboardLogin').style.display = 'none';
   document.getElementById('adminDashboardPanel').style.display = 'block';
   document.getElementById('adminRecordsView').classList.remove('admin-open');
@@ -3620,8 +3647,7 @@ async function importPDFListsInline() {
   }
 
   saveLocalStudentLists();
-  renderStudentListsSummaryInline();
-  renderStudentListsSummary();
+  refreshStudentListsUI();
   input.value = '';
 
   status.innerHTML = importStatusHtml(acc, errors);
@@ -3668,8 +3694,7 @@ function renderStudentListsSummaryInline() {
 async function deleteStudentListInline(key) {
   showTeacherToast('⏳ جاري حذف القائمة...', false, 15000);
   delete localStudentLists[key];
-  renderStudentListsSummaryInline();
-  renderStudentListsSummary();
+  refreshStudentListsUI();
   const ok = await saveLocalStudentLists({immediate: true, silent: true});
   showTeacherToast(ok ? '✅ تم حذف القائمة' : '⚠️ حُذفت من هذا الجهاز فقط، تعذر الحذف من السيرفر', !ok, ok ? 2500 : 5000);
 }
