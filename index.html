@@ -2340,6 +2340,10 @@ function exportData(type) {
       showTeacherToast('⚠️ اختر رقم الحصة أولًا أو أعد الخيار إلى "غياب يوم".', true);
       return;
     }
+    if (mode.kind === 'period' && !periodSupportConfirmed) {
+      ensurePeriodSupport().then(ok => { if (ok) exportData('Abs'); });
+      return;
+    }
     const absents = state.Abs.students.filter(s => state.Abs.attendance[s.id] === false);
     if (!absents.length) {
       showTeacherToast('لا يوجد غياب لتصديره.', true);
@@ -2706,6 +2710,10 @@ function noAbsentees() {
     return;
   }
   const isPeriod = mode.kind === 'period';
+  if (isPeriod && !periodSupportConfirmed) {
+    ensurePeriodSupport().then(ok => { if (ok) noAbsentees(); });
+    return;
+  }
 
   fetch(ADMIN_WEBAPP_URL, {
     method: 'POST',
@@ -2777,6 +2785,23 @@ function getAbsenceMode() {
   if (absMode !== 'period') return { kind: 'day', period: '' };
   const p = Number((document.getElementById('absPeriodSelect') || {}).value);
   return (p >= 1 && p <= 8) ? { kind: 'period', period: p } : null;
+}
+
+/* لا نسمح بتسجيل غياب حصة إلا إذا أكّد السيرفر أنه يحفظ حقل الحصة؛
+   وإلا سيُحفظ كغياب يوم كامل ويُرفع للبوابة التعليمية خطأً */
+let periodSupportConfirmed = false;
+async function ensurePeriodSupport() {
+  if (periodSupportConfirmed) return true;
+  try {
+    const res = await fetch(`${ADMIN_WEBAPP_URL}?action=ping&_=${Date.now()}`, { cache: 'no-store' });
+    const j = await res.json();
+    if (j && j.features && j.features.periodAbsence === true) {
+      periodSupportConfirmed = true;
+      return true;
+    }
+  } catch (e) { console.error(e); }
+  showTeacherToast('⚠️ لا يمكن تسجيل غياب الحصص الآن: كود Apps Script غير محدَّث (أو تعذّر الاتصال)، وسيُسجَّل كغياب يوم كامل ويُرفع للبوابة بالخطأ. حدّث Apps Script أولًا.', true, 10000);
+  return false;
 }
 
 function isPeriodRecord(r) {
