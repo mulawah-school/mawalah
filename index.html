@@ -733,10 +733,16 @@ async function resolveSchoolLink() {
 
     updateWhatsAppQuota(result.school);
 
-    localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
-      name: SCHOOL_REGISTERED_SETTINGS.name,
-      logo: SCHOOL_REGISTERED_SETTINGS.logo
-    }));
+    let keptLogo = SCHOOL_REGISTERED_SETTINGS.logo;
+    if (!keptLogo) {
+      try { keptLogo = String((JSON.parse(localStorage.getItem(schoolStorageKey(SCHOOL_SETTINGS_KEY)) || '{}')).logo || ''); } catch (e) { keptLogo = ''; }
+    }
+    try {
+      localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
+        name: SCHOOL_REGISTERED_SETTINGS.name,
+        logo: keptLogo
+      }));
+    } catch (e) { /* مساحة المتصفح ممتلئة: الشعار يأتي من الخادم */ }
 
     return result;
   } catch (err) {
@@ -1109,7 +1115,41 @@ function saveSchoolSettings() {
   }
 }
 
-function saveSchoolLogoFile(input) {
+/* يصغّر صورة الشعار (حد أقصى 320 بكسل) لتخفيف حجمها قبل حفظها */
+function shrinkLogoFile(file, maxSide) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/png'));
+      } catch (e) { reject(e); }
+      finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('تعذر قراءة الصورة')); };
+    img.src = url;
+  });
+}
+
+async function pushSchoolLogoToServer(logo) {
+  const res = await fetch(ADMIN_WEBAPP_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({ action: 'saveSchoolLogo', ...schoolRequestFields(), logo: logo || '' }),
+    cache: 'no-store',
+    redirect: 'follow'
+  });
+  const result = await res.json();
+  if (!result.success) throw new Error(result.error || result.message || 'تعذر حفظ الشعار على السيرفر');
+  return true;
+}
+
+async function saveSchoolLogoFile(input) {
   if (!adminDashboardUnlocked) {
     showTeacherToast('يرجى الدخول إلى الإدارة أولاً.', true);
     input.value = '';
@@ -1125,24 +1165,44 @@ function saveSchoolLogoFile(input) {
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = function() {
-    const current = getSchoolSettings();
+  const msg = document.getElementById('schoolSettingsMessage');
+  const say = (t, color) => { if (msg) { msg.textContent = t; msg.style.color = color; } };
 
+  let logo;
+  try {
+    logo = await shrinkLogoFile(file, 320);
+  } catch (e) {
+    showTeacherToast('⚠️ تعذر قراءة الصورة: ' + (e.message || e), true, 5000);
+    return;
+  }
+
+  // حفظ على هذا الجهاز
+  const current = getSchoolSettings();
+  let localOk = true;
+  try {
     localStorage.setItem(schoolStorageKey(SCHOOL_SETTINGS_KEY), JSON.stringify({
       name: current.name || DEFAULT_SCHOOL_NAME,
-      logo: String(reader.result || '')
+      logo
     }));
+  } catch (e) { localOk = false; }
 
-    applySchoolSettings();
+  if (schoolHasLinkContext()) SCHOOL_REGISTERED_SETTINGS.logo = logo;
+  applySchoolSettings();
 
-    const msg = document.getElementById('schoolSettingsMessage');
-    if (msg) {
-      msg.textContent = '✅ تم حفظ شعار المدرسة.';
-      msg.style.color = '#166534';
+  // حفظ على السيرفر ليظهر لكل الأجهزة
+  if (schoolHasLinkContext()) {
+    say('⏳ جاري حفظ الشعار على السيرفر...', '#075985');
+    try {
+      await pushSchoolLogoToServer(logo);
+      say('✅ تم حفظ شعار المدرسة وسيظهر على كل الأجهزة.', '#166534');
+      showTeacherToast('✅ تم حفظ الشعار', false, 2200);
+    } catch (e) {
+      say('⚠️ حُفظ الشعار على هذا الجهاز فقط: ' + (e.message || e), '#b45309');
+      showTeacherToast('⚠️ تعذر حفظ الشعار على السيرفر (تأكد من تحديث Apps Script)', true, 6000);
     }
-  };
-  reader.readAsDataURL(file);
+  } else {
+    say(localOk ? '✅ تم حفظ شعار المدرسة على هذا الجهاز.' : '⚠️ تعذر حفظ الشعار (مساحة المتصفح ممتلئة).', localOk ? '#166534' : '#b45309');
+  }
 }
 
 function resetSchoolSettings() {
@@ -1152,6 +1212,10 @@ function resetSchoolSettings() {
   }
 
   localStorage.removeItem(schoolStorageKey(SCHOOL_SETTINGS_KEY));
+  if (schoolHasLinkContext()) {
+    SCHOOL_REGISTERED_SETTINGS.logo = '';
+    pushSchoolLogoToServer('').catch(() => {});
+  }
 
   const input = document.getElementById('schoolSettingsName');
   if (input) input.value = DEFAULT_SCHOOL_NAME;
