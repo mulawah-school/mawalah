@@ -209,6 +209,12 @@ img{max-width:100%;height:auto}
   #schoolLinkGate .gate-card{padding:24px 18px!important}
   #schoolLinkGate .gate-icon{font-size:48px!important}
 }
+
+.excuse-select{padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1;font-family:inherit;font-size:14px;background:#fff;min-width:96px;}
+.excuse-select.is-excused{background:#dcfce7;border-color:#16a34a;color:#166534;font-weight:bold;}
+.abs-section-title{font-size:17px;font-weight:bold;color:#0f172a;margin:12px 0 8px;}
+.abs-section-title small{font-weight:normal;color:#64748b;font-size:13px;}
+.abs-section-empty{padding:14px;text-align:center;color:#64748b;background:#f8fafc;border-radius:10px;}
 </style>
 <style>
 /* ===== محرر قوائم الطلاب ===== */
@@ -2850,7 +2856,7 @@ function absenceDetailText(r) {
   if (r.studentName === 'لا يوجد غياب') {
     return 'لا يوجد غياب' + (isPeriodRecord(r) ? ' — الحصة ' + r.period : '');
   }
-  return isPeriodRecord(r) ? 'غياب الحصة ' + r.period : 'غياب يوم';
+  return isPeriodRecord(r) ? 'غياب الحصة ' + r.period : ('غياب يوم' + (r.excused === true ? ' — بعذر' : ' — بدون عذر'));
 }
 function recordDetailText(r) {
   return r.type === 'Viol' ? (r.violation || '—') : (r.type === 'Morning' ? 'تأخر صباحي' : absenceDetailText(r));
@@ -3054,7 +3060,7 @@ function renderAdminRecords() {
     return;
   }
 
-  const rows = records.map((r, i) => {
+  const buildRow = (r, i, withExcuse) => {
     const expired = isExpiredRecord(r);
     const checked = adminSelectedIds.has(String(r.id)) ? 'checked' : '';
     const sentText = r.sent
@@ -3065,7 +3071,14 @@ function renderAdminRecords() {
               ? '<span class="status-pending">⏸ بانتظار قالب رسالة الحصص</span>'
               : '<span class="status-pending">⏳ بانتظار الإرسال</span>'));
 
-    const detail = escapeHtml(recordDetailText(r));
+    const detail = escapeHtml(withExcuse ? 'غياب يوم' : recordDetailText(r));
+    const noAbs = r.studentName === 'لا يوجد غياب';
+    const excuseCell = withExcuse
+      ? `<td>${noAbs ? '—' : `<select class="excuse-select ${r.excused === true ? 'is-excused' : ''}" onchange="setRecordExcuse('${escapeJs(r.id)}', this.value === '1', this)">
+            <option value="0" ${r.excused === true ? '' : 'selected'}>بدون عذر</option>
+            <option value="1" ${r.excused === true ? 'selected' : ''}>بعذر</option>
+          </select>`}</td>`
+      : '';
 
     return `
       <tr${expired ? ' style="opacity:.75;"' : ''}>
@@ -3085,16 +3098,14 @@ function renderAdminRecords() {
         </td>
         <td>${escapeHtml(r.className || '—')}</td>
         <td>${detail}</td>
+        ${excuseCell}
         <td>${escapeHtml(r.date || '—')}</td>
         <td>${escapeHtml(r.teacher || '—')}</td>
         <td>${sentText}</td>
       </tr>`;
-  }).join('');
+  };
 
-  box.innerHTML = noteHtml + `
-    <div style="margin-bottom:10px;color:#475569;">
-      عدد النتائج: <strong>${records.length}</strong> — يوم <strong>${escapeHtml(day)}</strong>
-    </div>
+  const buildTable = (list, firstHeader, withExcuse) => `
     <table>
       <thead>
         <tr>
@@ -3102,14 +3113,64 @@ function renderAdminRecords() {
           <th>#</th>
           <th>الطالب</th>
           <th>الصف/الشعبة</th>
-          <th>${adminCurrentType === 'Viol' ? 'المخالفة' : 'الحالة'}</th>
+          <th>${firstHeader}</th>
+          ${withExcuse ? '<th>العذر</th>' : ''}
           <th>التاريخ</th>
           <th>المعلم</th>
           <th>حالة WhatsApp</th>
         </tr>
       </thead>
-      <tbody>${rows}</tbody>
+      <tbody>${list.map((r, i) => buildRow(r, i, withExcuse)).join('')}</tbody>
     </table>`;
+
+  let tablesHtml;
+  if (adminCurrentType === 'Abs') {
+    // غياب اليوم منفصل عن غياب الحصص
+    const dayList = records.filter(r => !isPeriodRecord(r));
+    const periodList = records.filter(isPeriodRecord);
+    const excusedN = dayList.filter(r => r.excused === true && r.studentName !== 'لا يوجد غياب').length;
+    tablesHtml =
+      `<div class="abs-section-title">📅 غياب اليوم <small>(${dayList.length} — بعذر: ${excusedN}، بدون عذر: ${dayList.filter(r => r.studentName !== 'لا يوجد غياب').length - excusedN})</small></div>` +
+      (dayList.length ? buildTable(dayList, 'الحالة', true) : '<div class="abs-section-empty">لا يوجد غياب يوم في هذا التاريخ.</div>') +
+      `<div class="abs-section-title" style="margin-top:22px;">⏱ غياب الحصص <small>(${periodList.length})</small></div>` +
+      (periodList.length ? buildTable(periodList, 'الحالة', false) : '<div class="abs-section-empty">لا يوجد غياب حصص في هذا التاريخ.</div>');
+  } else {
+    tablesHtml = buildTable(records, adminCurrentType === 'Viol' ? 'المخالفة' : 'الحالة', false);
+  }
+
+  box.innerHTML = noteHtml + `
+    <div style="margin-bottom:10px;color:#475569;">
+      عدد النتائج: <strong>${records.length}</strong> — يوم <strong>${escapeHtml(day)}</strong>
+    </div>` + tablesHtml;
+}
+
+/* تحديد غياب اليوم بعذر / بدون عذر: يُحفظ في السجل ويستخدمه تطبيق رفع الغياب للبوابة */
+async function setRecordExcuse(id, excused, el) {
+  const rec = adminRecords.find(r => String(r.id) === String(id));
+  const prev = rec ? rec.excused === true : false;
+  if (el) el.disabled = true;
+  try {
+    const response = await fetch(ADMIN_WEBAPP_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action: 'setExcuse',
+        pin: schoolHasLinkContext() ? '' : ADMIN_PIN,
+        ...schoolRequestFields(),
+        ids: [String(id)],
+        excused: !!excused
+      })
+    });
+    const result = await response.json();
+    if (!result.success) throw new Error(result.error || 'فشل الحفظ');
+    if (!result.updated) throw new Error('لم يُحدَّث السجل. حدّث كود Apps Script إلى النسخة الأخيرة.');
+    if (rec) rec.excused = !!excused;
+    showTeacherToast(excused ? '✅ سُجّل الغياب بعذر' : '✅ سُجّل الغياب بدون عذر', false, 1800);
+  } catch (err) {
+    if (rec) rec.excused = prev;
+    showTeacherToast('⚠️ تعذر حفظ العذر: ' + (err.message || err), true, 5000);
+  }
+  renderAdminRecords();
 }
 
 function toggleAdminRecord(id, checked) {
