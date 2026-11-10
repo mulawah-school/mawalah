@@ -1452,7 +1452,7 @@ function compareSections(a, b) {
   if (na && nb) return Number(a) - Number(b);
   if (na) return -1;
   if (nb) return 1;
-  return String(a).localeCompare(String(b), 'ar');
+  return String(a).localeCompare(String(b), 'ar', { numeric: true });
 }
 
 function getImportedSections(grade) {
@@ -1916,6 +1916,14 @@ function xlDetectGradeSection(cells) {
     if (m2 && !out.section) out.section = xlSecValue(m2[1]);
     if (out.grade) break;
   }
+  // سطر BTEC بصيغة 11/1 (الصف/الشعبة) بدون كلمة "الصف"؛ نتجاهل مدى المرحلة مثل (11-12)
+  if (!out.grade) {
+    const all = xlDigits(cells.filter(Boolean).join(' '));
+    if (looksBtec(all)) {
+      const bm = all.match(/(?<![\(\d])(1[12])\s*[\/\-–]\s*(\d{1,2})(?![\d\)])/);
+      if (bm) { out.grade = Number(bm[1]); out.section = String(Number(bm[2])); }
+    }
+  }
   return out;
 }
 
@@ -1937,6 +1945,16 @@ function xlGuessFromName(name) {
   else if (nums.length >= 2) { g = nums[0]; s = String(nums[1]); }
   return { grade: g >= 1 && g <= 12 ? g : 0, section: s };
 }
+
+/* نظام BTEC (المسار المهني والتقني — المرحلة: المهني والتقني 11-12):
+   يُعرَّف من نص التقرير أو اسم الملف أو الورقة، ويُميَّز بشعب باسم "BTEC n" حتى لا تختلط بشعب الصفين 11 و12 العاديين. */
+const XL_BTEC_RE = /btec|بي\s?تك|بيتك|المهني|التقني|مهني|تقني/i;
+function looksBtec(text) { return XL_BTEC_RE.test(String(text || '')); }
+function btecSectionName(section) {
+  const sec = String(section || '1').trim() || '1';
+  return /^btec/i.test(sec) ? sec.replace(/^btec\s*/i, 'BTEC ').trim() : 'BTEC ' + sec;
+}
+function isBtecSection(section) { return /^btec(\s|$)/i.test(String(section || '')); }
 
 /* rows: مصفوفة صفوف، كل صف مصفوفة قيم. يعيد مجموعات [{grade, section, students}] */
 function xlParseRows(rows, opts) {
@@ -1991,7 +2009,10 @@ async function extractStudentGroupsFromExcel(file) {
     const sd = xlGuessFromName(sn);
     const defaultGrade = sd.grade || fileDef.grade;
     const defaultSection = sd.grade ? sd.section : (fileDef.section || sd.section);
+    const headText = [sn, file.name].concat(rows.slice(0, 30).map(r => (r || []).join(' '))).join(' ');
+    const sheetIsBtec = looksBtec(headText);
     xlParseRows(rows, { defaultGrade, defaultSection }).forEach(g => {
+      if (sheetIsBtec && Number(g.grade) >= 11) g.section = btecSectionName(g.section);
       const key = g.grade + '|' + g.section;
       if (!merged.has(key)) merged.set(key, { grade: g.grade, section: g.section, students: [] });
       merged.get(key).students.push(...g.students);
@@ -2057,6 +2078,7 @@ async function extractStudentsFromPDF(file) {
   const students = [];
   let detectedGrade = '';
   let detectedSection = '';
+  let detectedBtec = false;
 
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
     const page = await pdf.getPage(pageNo);
@@ -2099,6 +2121,7 @@ async function extractStudentsFromPDF(file) {
     );
 
     const pageText = lines.join('\n');
+    if (looksBtec(pageText)) detectedBtec = true;
 
     if (!detectedGrade) {
       detectedGrade = extractGradeNumber(pageText);
@@ -2166,6 +2189,10 @@ async function extractStudentsFromPDF(file) {
 
   if (!detectedSection) {
     detectedSection = '1';
+  }
+
+  if (detectedBtec && Number(detectedGrade) >= 11) {
+    detectedSection = btecSectionName(detectedSection);
   }
 
   if (!unique.length) {
